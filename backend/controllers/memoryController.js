@@ -1,6 +1,20 @@
-const path = require('path');
 const { Memory, Family, FamilyMembership, User } = require('../models');
 const { recordActivity } = require('../utils/activity');
+const { uploadBuffer, deleteByPublicId } = require('../utils/cloudinary');
+
+const getMediaTypeFromMime = (mime) => {
+  if (!mime) return 'document';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'document';
+};
+
+const getCloudinaryResourceType = (mediaType) => {
+  if (mediaType === 'video' || mediaType === 'audio') return 'video';
+  if (mediaType === 'document') return 'raw';
+  return 'image';
+};
 
 // @desc    Create memory with file uploads
 exports.createMemory = async (req, res, next) => {
@@ -33,19 +47,27 @@ exports.createMemory = async (req, res, next) => {
       });
     }
 
-    const media = req.files ? req.files.map(file => ({
-      url: `/uploads/${path.basename(file.path)}`,
-      type: file.mimetype.startsWith('image')
-        ? 'image'
-        : file.mimetype.startsWith('video')
-          ? 'video'
-          : file.mimetype.startsWith('audio')
-            ? 'audio'
-            : 'document',
-      thumbnail: null,
-      filename: file.originalname,
-      size: file.size
-    })) : [];
+    const media = req.files?.length
+      ? await Promise.all(req.files.map(async (file) => {
+          const uploadResult = await uploadBuffer(file.buffer, {
+            folder: `familytree/memories/${familyId}`,
+            use_filename: true,
+            unique_filename: true
+          });
+
+          const mediaType = getMediaTypeFromMime(file.mimetype);
+
+          return {
+            url: uploadResult.secure_url,
+            type: mediaType,
+            thumbnail: null,
+            filename: file.originalname,
+            size: file.size,
+            cloudinaryId: uploadResult.public_id,
+            cloudinaryResourceType: uploadResult.resource_type
+          };
+        }))
+      : [];
 
     const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location || null;
     const parsedTagged = typeof taggedMembers === 'string' ? JSON.parse(taggedMembers) : taggedMembers || [];
@@ -250,6 +272,11 @@ exports.deleteMemory = async (req, res, next) => {
           storageUsed: Math.max((creator.storageUsed || 0) - totalSize, 0)
         });
       }
+
+      await Promise.all(memory.media.map((item) => {
+        const resourceType = item.cloudinaryResourceType || getCloudinaryResourceType(item.type);
+        return deleteByPublicId(item.cloudinaryId, resourceType);
+      }));
     }
 
     const family = await Family.findByPk(memory.familyId);
