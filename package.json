@@ -1,0 +1,32 @@
+{
+  "name": "familytree-fullstack",
+  "version": "1.0.0",
+  "description": "Family Tree Management System - Full Stack Application",
+  "main": "backend/server.js",
+  "scripts": {
+    "install": "cd backend && npm install && cd ../frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "start:prod": "cd backend && cross-env NODE_ENV=production npm start",
+    "deploy": "npm run build && npm run start:prod",
+    "heroku-postbuild": "npm run build"
+  },
+  "keywords": [
+    "family-tree",
+    "genealogy",
+    "react",
+    "nodejs",
+    "postgresql"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
+  }
+}

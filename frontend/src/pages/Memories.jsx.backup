@@ -1,0 +1,542 @@
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { memoryAPI } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Upload, Image as ImageIcon, Video, X, Heart, MessageCircle, Calendar, User, Search, Filter, Eye, Download } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
+import toast from 'react-hot-toast';
+import { format } from 'date-fns';
+
+export default function Memories() {
+  const { familyId } = useParams();
+  const queryClient = useQueryClient();
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedMemory, setSelectedMemory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
+
+  const { data: memoriesData, isLoading } = useQuery({
+    queryKey: ['memories', familyId],
+    queryFn: () => memoryAPI.getAll(familyId),
+  });
+
+  const memories = memoriesData?.data?.memories || [];
+
+  // Filter and search memories
+  const filteredMemories = memories.filter(memory => {
+    const matchesSearch = memory.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         memory.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterType === 'all' || memory.type === filterType;
+    return matchesSearch && matchesFilter;
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: (memoryId) => memoryAPI.like(memoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['memories', familyId]);
+      toast.success('❤️ Liked!');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (memoryId) => memoryAPI.delete(memoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['memories', familyId]);
+      toast.success('Memory deleted');
+      setSelectedMemory(null);
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+      >
+        <div>
+          <h1 className="text-3xl font-bold gradient-text">Family Memories</h1>
+          <p className="text-gray-600 mt-1">Preserve and share your family's precious moments</p>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowUploadModal(true)}
+          className="btn btn-primary flex items-center gap-2"
+        >
+          <Upload size={20} />
+          Upload Memory
+        </motion.button>
+      </motion.div>
+
+      {/* Search and Filter */}
+      <motion.div
+        className="flex flex-col sm:flex-row gap-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            type="text"
+            placeholder="Search memories..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          {['all', 'photo', 'video', 'story'].map((type) => (
+            <motion.button
+              key={type}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setFilterType(type)}
+              className={`px-4 py-2 rounded-lg capitalize transition-colors ${
+                filterType === type
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {type}
+            </motion.button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Memories Grid */}
+      {filteredMemories.length === 0 ? (
+        <motion.div
+          className="card text-center py-16"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+        >
+          <motion.div
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            <ImageIcon size={64} className="mx-auto text-gray-400 mb-4" />
+          </motion.div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No memories yet</h3>
+          <p className="text-gray-600 mb-6">Start creating your family's digital legacy!</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowUploadModal(true)}
+            className="btn btn-primary inline-flex items-center gap-2"
+          >
+            <Upload size={20} />
+            Upload First Memory
+          </motion.button>
+        </motion.div>
+      ) : (
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          {filteredMemories.map((memory, index) => (
+            <MemoryCard
+              key={memory._id}
+              memory={memory}
+              index={index}
+              onClick={() => setSelectedMemory(memory)}
+              onLike={() => likeMutation.mutate(memory._id)}
+            />
+          ))}
+        </motion.div>
+      )}
+
+      {/* Upload Modal */}
+      <UploadMemoryModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        familyId={familyId}
+      />
+
+      {/* Memory Detail Modal */}
+      <MemoryDetailModal
+        memory={selectedMemory}
+        onClose={() => setSelectedMemory(null)}
+        onDelete={(id) => deleteMutation.mutate(id)}
+        onLike={(id) => likeMutation.mutate(id)}
+      />
+    </div>
+  );
+}
+
+// Memory Card Component
+function MemoryCard({ memory, index, onClick, onLike }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      whileHover={{ y: -8, scale: 1.02 }}
+      className="card p-0 overflow-hidden cursor-pointer group"
+      onClick={onClick}
+    >
+      <div className="relative aspect-square bg-gray-100">
+        {memory.mediaUrl ? (
+          memory.type === 'video' ? (
+            <div className="relative w-full h-full">
+              <video
+                src={memory.mediaUrl}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <Video className="text-white" size={48} />
+              </div>
+            </div>
+          ) : (
+            <img
+              src={memory.mediaUrl}
+              alt={memory.title}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            />
+          )
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ImageIcon className="text-gray-300" size={48} />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">{memory.title}</h3>
+        <p className="text-sm text-gray-600 line-clamp-2 mb-3">{memory.description}</p>
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span className="flex items-center gap-1">
+            <Calendar size={14} />
+            {memory.date ? format(new Date(memory.date), 'MMM d, yyyy') : 'No date'}
+          </span>
+          <motion.button
+            whileHover={{ scale: 1.2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLike();
+            }}
+            className="flex items-center gap-1 text-red-500 hover:text-red-600"
+          >
+            <Heart size={16} fill={memory.liked ? 'currentColor' : 'none'} />
+            {memory.likes || 0}
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// Upload Memory Modal Component
+function UploadMemoryModal({ isOpen, onClose, familyId }) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    date: '',
+    type: 'photo',
+    file: null,
+  });
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+      'video/*': ['.mp4', '.mov', '.avi'],
+    },
+    maxSize: 50 * 1024 * 1024, // 50MB
+    onDrop: (acceptedFiles) => {
+      if (acceptedFiles[0]) {
+        setFormData(prev => ({
+          ...prev,
+          file: acceptedFiles[0],
+          type: acceptedFiles[0].type.startsWith('video') ? 'video' : 'photo',
+        }));
+      }
+    },
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (data) => {
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', data.title);
+      formDataToSend.append('description', data.description);
+      formDataToSend.append('date', data.date);
+      formDataToSend.append('type', data.type);
+      formDataToSend.append('family', familyId);
+      if (data.file) {
+        formDataToSend.append('media', data.file);
+      }
+      return memoryAPI.create(formDataToSend);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['memories', familyId]);
+      toast.success('✨ Memory uploaded successfully!');
+      onClose();
+      setFormData({ title: '', description: '', date: '', type: 'photo', file: null });
+    },
+    onError: () => {
+      toast.error('Failed to upload memory');
+    },
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.title) {
+      toast.error('Please add a title');
+      return;
+    }
+    uploadMutation.mutate(formData);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Upload Memory</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* File Upload */}
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isDragActive
+                    ? 'border-primary-600 bg-primary-50'
+                    : 'border-gray-300 hover:border-primary-400'
+                }`}
+              >
+                <input {...getInputProps()} />
+                {formData.file ? (
+                  <div className="space-y-2">
+                    <ImageIcon className="mx-auto text-primary-600" size={48} />
+                    <p className="text-sm text-gray-600">{formData.file.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {(formData.file.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Upload className="mx-auto text-gray-400" size={48} />
+                    <p className="text-gray-600">
+                      {isDragActive ? 'Drop files here...' : 'Drag & drop or click to upload'}
+                    </p>
+                    <p className="text-xs text-gray-500">Photos or videos up to 50MB</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Summer family reunion"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows="3"
+                  placeholder="Tell the story behind this memory..."
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Submit */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadMutation.isPending}
+                  className="flex-1 btn btn-primary disabled:opacity-50"
+                >
+                  {uploadMutation.isPending ? 'Uploading...' : 'Upload Memory'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// Memory Detail Modal Component
+function MemoryDetailModal({ memory, onClose, onDelete, onLike }) {
+  const [comment, setComment] = useState('');
+
+  if (!memory) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid md:grid-cols-2 gap-6 p-6">
+              {/* Media */}
+              <div className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square">
+                {memory.mediaUrl ? (
+                  memory.type === 'video' ? (
+                    <video src={memory.mediaUrl} controls className="w-full h-full object-contain" />
+                  ) : (
+                    <img src={memory.mediaUrl} alt={memory.title} className="w-full h-full object-contain" />
+                  )
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ImageIcon className="text-gray-300" size={64} />
+                  </div>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <h2 className="text-2xl font-bold text-gray-900">{memory.title}</h2>
+                  <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <p className="text-gray-600">{memory.description}</p>
+
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={16} />
+                    {memory.date ? format(new Date(memory.date), 'MMMM d, yyyy') : 'No date'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <User size={16} />
+                    {memory.uploadedBy?.name || 'Unknown'}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onLike(memory._id)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-red-50 text-red-600"
+                  >
+                    <Heart size={20} fill={memory.liked ? 'currentColor' : 'none'} />
+                    {memory.likes || 0} Likes
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 text-blue-600"
+                  >
+                    <Download size={20} />
+                    Download
+                  </motion.button>
+                </div>
+
+                {/* Comments */}
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-gray-900">Comments</h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {memory.comments?.map((comment, i) => (
+                      <div key={i} className="text-sm">
+                        <span className="font-medium text-gray-900">{comment.user?.name}: </span>
+                        <span className="text-gray-600">{comment.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Add a comment..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                    <button className="btn btn-primary text-sm">Post</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

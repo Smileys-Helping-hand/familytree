@@ -1,0 +1,92 @@
+const mongoose = require('mongoose');
+
+const familySchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Please provide a family name'],
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  coverPhoto: {
+    type: String,
+    default: null
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  members: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    role: {
+      type: String,
+      enum: ['admin', 'editor', 'viewer'],
+      default: 'viewer'
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  invitations: [{
+    email: String,
+    role: {
+      type: String,
+      enum: ['admin', 'editor', 'viewer'],
+      default: 'viewer'
+    },
+    token: String,
+    expiresAt: Date,
+    sentAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  settings: {
+    privacy: {
+      type: String,
+      enum: ['private', 'family_only', 'public'],
+      default: 'family_only'
+    },
+    allowMemberInvites: {
+      type: Boolean,
+      default: false
+    },
+    requireApproval: {
+      type: Boolean,
+      default: true
+    }
+  },
+  stats: {
+    totalMembers: {
+      type: Number,
+      default: 0
+    },
+    totalMemories: {
+      type: Number,
+      default: 0
+    },
+    totalEvents: {
+      type: Number,
+      default: 0
+    }
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Index for faster queries
+familySchema.index({ 'members.user': 1 });
+familySchema.index({ createdBy: 1 });
+
+module.exports = mongoose.model('Family', familySchema);

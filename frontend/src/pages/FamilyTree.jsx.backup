@@ -1,0 +1,582 @@
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { memberAPI } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import ReactFlow, { Background, Controls, MiniMap, useNodesState, useEdgesState } from 'reactflow';
+import 'reactflow/dist/style.css';
+import { Plus, Edit, Trash2, X, User, Users, ZoomIn, ZoomOut, Maximize, Filter, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+export default function FamilyTree() {
+  const { familyId } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGender, setFilterGender] = useState('all');
+
+  const { data: membersData, isLoading } = useQuery({
+    queryKey: ['family-members', familyId],
+    queryFn: () => memberAPI.getAll(familyId),
+  });
+
+  const members = membersData?.data?.members || [];
+
+  // Filter members
+  const filteredMembers = members.filter(member => {
+    const matchesSearch = `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGender = filterGender === 'all' || member.gender === filterGender;
+    return matchesSearch && matchesGender;
+  });
+
+  // Convert members to React Flow nodes and edges
+  const nodes = filteredMembers.map((member, index) => ({
+    id: member._id,
+    type: 'custom',
+    data: {
+      member,
+      onClick: () => navigate(`/member/${member._id}`),
+      onEdit: () => setSelectedMember(member),
+    },
+    position: member.treePosition || { x: (index % 5) * 250, y: Math.floor(index / 5) * 200 },
+    style: {
+      background: 'transparent',
+      border: 'none',
+      padding: 0,
+    },
+  }));
+
+  // Create edges for relationships
+  const edges = [];
+  filteredMembers.forEach((member) => {
+    // Parent-child relationships
+    member.relationships?.children?.forEach((childId) => {
+      if (filteredMembers.find(m => m._id === childId)) {
+        edges.push({
+          id: `${member._id}-${childId}`,
+          source: member._id,
+          target: childId,
+          type: 'smoothstep',
+          animated: false,
+          style: { stroke: '#4F46E5', strokeWidth: 2 },
+          label: 'child',
+          labelStyle: { fontSize: 10, fill: '#666' },
+        });
+      }
+    });
+
+    // Spouse relationships
+    member.relationships?.spouse?.forEach((spouseId) => {
+      if (filteredMembers.find(m => m._id === spouseId) && member._id < spouseId) {
+        edges.push({
+          id: `${member._id}-${spouseId}-spouse`,
+          source: member._id,
+          target: spouseId,
+          type: 'straight',
+          animated: false,
+          style: { stroke: '#EC4899', strokeWidth: 2, strokeDasharray: '5,5' },
+          label: 'married',
+          labelStyle: { fontSize: 10, fill: '#EC4899' },
+        });
+      }
+    });
+  });
+
+  const [nodesState, setNodes, onNodesChange] = useNodesState(nodes);
+  const [edgesState, setEdges, onEdgesChange] = useEdgesState(edges);
+
+  const deleteMutation = useMutation({
+    mutationFn: (memberId) => memberAPI.delete(memberId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['family-members', familyId]);
+      toast.success('Member deleted');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[600px]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"
+        />
+      </div>
+    );
+  }
+
+  // Custom Node Component
+  const nodeTypes = {
+    custom: ({ data }) => (
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        whileHover={{ scale: 1.05, zIndex: 10 }}
+        className="group"
+      >
+        <div 
+          onClick={data.onClick}
+          className="bg-white rounded-xl shadow-lg border-2 border-primary-200 p-4 cursor-pointer hover:border-primary-500 transition-all w-48"
+        >
+          {/* Profile Photo */}
+          <div className="relative mb-3">
+            {data.member.profilePhoto ? (
+              <img
+                src={data.member.profilePhoto}
+                alt={data.member.firstName}
+                className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-md"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full mx-auto bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white text-2xl font-bold border-4 border-white shadow-md">
+                {data.member.firstName?.charAt(0)}{data.member.lastName?.charAt(0)}
+              </div>
+            )}
+            {data.member.isLiving === false && (
+              <div className="absolute top-0 right-0 w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center text-white text-xs">
+                †
+              </div>
+            )}
+          </div>
+
+          {/* Name */}
+          <div className="text-center mb-2">
+            <h3 className="font-semibold text-gray-900 text-sm">
+              {data.member.firstName} {data.member.lastName}
+            </h3>
+            {data.member.birthDate?.date && (
+              <p className="text-xs text-gray-500">
+                b. {new Date(data.member.birthDate.date).getFullYear()}
+                {data.member.deathDate?.date && ` - ${new Date(data.member.deathDate.date).getFullYear()}`}
+              </p>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onEdit();
+              }}
+              className="flex-1 p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
+            >
+              <Edit size={14} className="mx-auto" />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm('Delete this member?')) {
+                  deleteMutation.mutate(data.member._id);
+                }
+              }}
+              className="flex-1 p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
+            >
+              <Trash2 size={14} className="mx-auto" />
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    ),
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div 
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+      >
+        <div>
+          <h1 className="text-3xl font-bold gradient-text">Family Tree</h1>
+          <p className="text-gray-600 mt-1">Visualize your family connections</p>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowAddModal(true)}
+          className="btn btn-primary flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Add Member
+        </motion.button>
+      </motion.div>
+
+      {/* Toolbar */}
+      <motion.div 
+        className="flex flex-wrap gap-4 items-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search members..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+        </div>
+        <div className="flex gap-2">
+          {['all', 'male', 'female'].map((gender) => (
+            <motion.button
+              key={gender}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setFilterGender(gender)}
+              className={`px-4 py-2 rounded-lg capitalize transition-colors ${
+                filterGender === gender
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {gender}
+            </motion.button>
+          ))}
+        </div>
+        <div className="text-sm text-gray-600">
+          {filteredMembers.length} members
+        </div>
+      </motion.div>
+
+      {/* Tree Visualization */}
+      <motion.div 
+        className="card p-0 overflow-hidden" 
+        style={{ height: '700px' }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        {members.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Users size={64} className="mx-auto text-gray-300 mb-4" />
+              </motion.div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No family members yet</h3>
+              <p className="text-gray-600 mb-6">Start building your family tree!</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAddModal(true)}
+                className="btn btn-primary inline-flex items-center gap-2"
+              >
+                <Plus size={20} />
+                Add First Member
+              </motion.button>
+            </div>
+          </div>
+        ) : (
+          <ReactFlow
+            nodes={nodesState}
+            edges={edgesState}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            fitView
+            attributionPosition="bottom-left"
+            minZoom={0.1}
+            maxZoom={2}
+          >
+            <Background color="#E5E7EB" gap={16} />
+            <Controls />
+            <MiniMap
+              nodeColor={(node) => {
+                return node.data.member?.gender === 'male' ? '#3B82F6' : '#EC4899';
+              }}
+              maskColor="rgba(0, 0, 0, 0.1)"
+            />
+          </ReactFlow>
+        )}
+      </motion.div>
+
+      {/* Add/Edit Member Modal */}
+      <AddMemberModal
+        isOpen={showAddModal || selectedMember}
+        onClose={() => {
+          setShowAddModal(false);
+          setSelectedMember(null);
+        }}
+        familyId={familyId}
+        member={selectedMember}
+      />
+
+      {/* Stats */}
+      <motion.div 
+        className="grid grid-cols-2 md:grid-cols-4 gap-4"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div className="card text-center">
+          <div className="text-3xl font-bold text-primary-600">{members.length}</div>
+          <div className="text-sm text-gray-600 mt-1">Total Members</div>
+        </div>
+        <div className="card text-center">
+          <div className="text-3xl font-bold text-blue-600">
+            {members.filter(m => m.gender === 'male').length}
+          </div>
+          <div className="text-sm text-gray-600 mt-1">Males</div>
+        </div>
+        <div className="card text-center">
+          <div className="text-3xl font-bold text-pink-600">
+            {members.filter(m => m.gender === 'female').length}
+          </div>
+          <div className="text-sm text-gray-600 mt-1">Females</div>
+        </div>
+        <div className="card text-center">
+          <div className="text-3xl font-bold text-purple-600">
+            {Math.max(...members.map(m => {
+              const getGeneration = (member, depth = 0) => {
+                const parents = member.relationships?.parents?.length || 0;
+                return parents > 0 ? depth + 1 : depth;
+              };
+              return getGeneration(m);
+            }), 0) + 1}
+          </div>
+          <div className="text-sm text-gray-600 mt-1">Generations</div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Add/Edit Member Modal Component
+function AddMemberModal({ isOpen, onClose, familyId, member }) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    firstName: member?.firstName || '',
+    lastName: member?.lastName || '',
+    gender: member?.gender || 'male',
+    birthDate: member?.birthDate?.date ? new Date(member.birthDate.date).toISOString().split('T')[0] : '',
+    deathDate: member?.deathDate?.date ? new Date(member.deathDate.date).toISOString().split('T')[0] : '',
+    isLiving: member?.isLiving !== false,
+    biography: member?.biography || '',
+    email: member?.email || '',
+    phone: member?.phone || '',
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => {
+      const payload = {
+        ...data,
+        family: familyId,
+        birthDate: data.birthDate ? { date: data.birthDate } : undefined,
+        deathDate: data.deathDate ? { date: data.deathDate } : undefined,
+      };
+      return member?._id 
+        ? memberAPI.update(member._id, payload)
+        : memberAPI.create(payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['family-members', familyId]);
+      toast.success(member ? '✨ Member updated!' : '🎉 Member added!');
+      onClose();
+    },
+    onError: () => {
+      toast.error('Failed to save member');
+    },
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    saveMutation.mutate(formData);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {member ? 'Edit Member' : 'Add Family Member'}
+              </h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender
+                </label>
+                <div className="flex gap-4">
+                  {['male', 'female', 'other'].map((gender) => (
+                    <label key={gender} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value={gender}
+                        checked={formData.gender === gender}
+                        onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <span className="capitalize">{gender}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Birth Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, birthDate: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Death Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.deathDate}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      deathDate: e.target.value,
+                      isLiving: !e.target.value 
+                    }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    disabled={formData.isLiving}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isLiving}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      isLiving: e.target.checked,
+                      deathDate: e.target.checked ? '' : prev.deathDate
+                    }))}
+                    className="w-4 h-4 text-primary-600 rounded"
+                  />
+                  <span className="text-sm text-gray-700">Still living</span>
+                </label>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Biography
+                </label>
+                <textarea
+                  value={formData.biography}
+                  onChange={(e) => setFormData(prev => ({ ...prev, biography: e.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  rows="4"
+                  placeholder="Tell their story..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-6 border-t">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saveMutation.isPending}
+                  className="flex-1 btn btn-primary disabled:opacity-50"
+                >
+                  {saveMutation.isPending ? 'Saving...' : (member ? 'Update Member' : 'Add Member')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

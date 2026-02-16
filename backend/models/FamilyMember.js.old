@@ -1,0 +1,155 @@
+const mongoose = require('mongoose');
+
+const familyMemberSchema = new mongoose.Schema({
+  family: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Family',
+    required: true
+  },
+  firstName: {
+    type: String,
+    required: [true, 'Please provide a first name'],
+    trim: true
+  },
+  lastName: {
+    type: String,
+    trim: true
+  },
+  maidenName: {
+    type: String,
+    trim: true
+  },
+  nicknames: [String],
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer_not_to_say'],
+    default: 'prefer_not_to_say'
+  },
+  profilePhoto: {
+    type: String,
+    default: null
+  },
+  birthDate: {
+    date: Date,
+    location: String,
+    isEstimate: {
+      type: Boolean,
+      default: false
+    }
+  },
+  deathDate: {
+    date: Date,
+    location: String,
+    isEstimate: {
+      type: Boolean,
+      default: false
+    }
+  },
+  isLiving: {
+    type: Boolean,
+    default: true
+  },
+  biography: {
+    type: String,
+    maxlength: 5000
+  },
+  occupation: String,
+  education: String,
+  currentLocation: {
+    city: String,
+    state: String,
+    country: String
+  },
+  contactInfo: {
+    email: String,
+    phone: String,
+    address: String
+  },
+  relationships: {
+    parents: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FamilyMember'
+    }],
+    spouses: [{
+      member: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'FamilyMember'
+      },
+      marriageDate: Date,
+      marriageLocation: String,
+      divorceDate: Date,
+      isCurrent: {
+        type: Boolean,
+        default: true
+      }
+    }],
+    children: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FamilyMember'
+    }],
+    siblings: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'FamilyMember'
+    }]
+  },
+  facts: [{
+    title: String,
+    description: String,
+    date: Date,
+    location: String,
+    source: String
+  }],
+  linkedUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  lastModifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  treePosition: {
+    x: Number,
+    y: Number,
+    generation: Number
+  },
+  isApproved: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Virtual for full name
+familyMemberSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName || ''}`.trim();
+});
+
+// Virtual for age
+familyMemberSchema.virtual('age').get(function() {
+  if (!this.birthDate?.date) return null;
+  
+  const endDate = this.isLiving ? new Date() : (this.deathDate?.date || new Date());
+  const age = endDate.getFullYear() - this.birthDate.date.getFullYear();
+  return age;
+});
+
+// Indexes
+familyMemberSchema.index({ family: 1, firstName: 1, lastName: 1 });
+familyMemberSchema.index({ 'relationships.parents': 1 });
+familyMemberSchema.index({ linkedUser: 1 });
+
+// Ensure virtuals are included in JSON
+familyMemberSchema.set('toJSON', { virtuals: true });
+familyMemberSchema.set('toObject', { virtuals: true });
+
+module.exports = mongoose.model('FamilyMember', familyMemberSchema);

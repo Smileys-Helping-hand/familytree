@@ -1,0 +1,257 @@
+const FamilyMember = require('../models/FamilyMember');
+const Family = require('../models/Family');
+
+// @desc    Create family member
+exports.createMember = async (req, res, next) => {
+  try {
+    const memberData = req.body;
+    memberData.createdBy = req.user._id;
+
+    const member = await FamilyMember.create(memberData);
+
+    // Update family stats
+    await Family.findByIdAndUpdate(memberData.family, {
+      $inc: { 'stats.totalMembers': 1 }
+    });
+
+    res.status(201).json({
+      success: true,
+      member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all members in a family
+exports.getFamilyMembers = async (req, res, next) => {
+  try {
+    const { familyId } = req.params;
+    
+    const members = await FamilyMember.find({ family: familyId })
+      .populate('createdBy', 'name')
+      .populate('relationships.parents', 'firstName lastName')
+      .populate('relationships.spouses.member', 'firstName lastName')
+      .populate('relationships.children', 'firstName lastName')
+      .sort('firstName');
+
+    res.json({
+      success: true,
+      count: members.length,
+      members
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get single member
+exports.getMember = async (req, res, next) => {
+  try {
+    const member = await FamilyMember.findById(req.params.id)
+      .populate('family', 'name')
+      .populate('createdBy', 'name')
+      .populate('relationships.parents')
+      .populate('relationships.spouses.member')
+      .populate('relationships.children')
+      .populate('relationships.siblings');
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update member
+exports.updateMember = async (req, res, next) => {
+  try {
+    const updateData = req.body;
+    updateData.lastModifiedBy = req.user._id;
+
+    const member = await FamilyMember.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete member
+exports.deleteMember = async (req, res, next) => {
+  try {
+    const member = await FamilyMember.findById(req.params.id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    await member.deleteOne();
+
+    // Update family stats
+    await Family.findByIdAndUpdate(member.family, {
+      $inc: { 'stats.totalMembers': -1 }
+    });
+
+    res.json({
+      success: true,
+      message: 'Member deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get family tree for member
+exports.getFamilyTree = async (req, res, next) => {
+  try {
+    const member = await FamilyMember.findById(req.params.id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    // Get all family members
+    const allMembers = await FamilyMember.find({ family: member.family });
+
+    // Build tree structure (simplified)
+    const treeData = allMembers.map(m => ({
+      id: m._id,
+      name: m.fullName,
+      gender: m.gender,
+      photo: m.profilePhoto,
+      birthDate: m.birthDate?.date,
+      isLiving: m.isLiving,
+      parents: m.relationships.parents,
+      spouses: m.relationships.spouses.map(s => s.member),
+      children: m.relationships.children
+    }));
+
+    res.json({
+      success: true,
+      tree: treeData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add relationship
+exports.addRelationship = async (req, res, next) => {
+  try {
+    const { type, relatedId, metadata } = req.body;
+    const member = await FamilyMember.findById(req.params.id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    // Add relationship based on type
+    switch (type) {
+      case 'parent':
+        if (!member.relationships.parents.includes(relatedId)) {
+          member.relationships.parents.push(relatedId);
+        }
+        break;
+      case 'spouse':
+        const existing = member.relationships.spouses.find(
+          s => s.member.toString() === relatedId
+        );
+        if (!existing) {
+          member.relationships.spouses.push({
+            member: relatedId,
+            ...metadata
+          });
+        }
+        break;
+      case 'child':
+        if (!member.relationships.children.includes(relatedId)) {
+          member.relationships.children.push(relatedId);
+        }
+        break;
+    }
+
+    await member.save();
+
+    res.json({
+      success: true,
+      member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Remove relationship
+exports.removeRelationship = async (req, res, next) => {
+  try {
+    const { type, relatedId } = req.params;
+    const member = await FamilyMember.findById(req.params.id);
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        error: 'Member not found'
+      });
+    }
+
+    switch (type) {
+      case 'parent':
+        member.relationships.parents = member.relationships.parents.filter(
+          p => p.toString() !== relatedId
+        );
+        break;
+      case 'spouse':
+        member.relationships.spouses = member.relationships.spouses.filter(
+          s => s.member.toString() !== relatedId
+        );
+        break;
+      case 'child':
+        member.relationships.children = member.relationships.children.filter(
+          c => c.toString() !== relatedId
+        );
+        break;
+    }
+
+    await member.save();
+
+    res.json({
+      success: true,
+      member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
