@@ -3,11 +3,13 @@ const { Sequelize } = require('sequelize');
 const isTestEnv = process.env.NODE_ENV === 'test';
 
 // Create Sequelize instance for Neon PostgreSQL
+const databaseUrl = process.env.DATABASE_URL;
+
 const sequelize = isTestEnv
   ? new Sequelize('sqlite::memory:', {
       logging: false
     })
-  : new Sequelize(process.env.DATABASE_URL, {
+  : new Sequelize(databaseUrl, {
       dialect: 'postgres',
       dialectOptions: {
         ssl: {
@@ -27,6 +29,10 @@ const sequelize = isTestEnv
 // Test connection
 const testConnection = async () => {
   try {
+    if (!isTestEnv && !databaseUrl) {
+      throw new Error('DATABASE_URL is not set');
+    }
+
     await sequelize.authenticate();
     console.log(isTestEnv ? '✅ SQLite connected successfully' : '✅ PostgreSQL connected successfully');
     return true;

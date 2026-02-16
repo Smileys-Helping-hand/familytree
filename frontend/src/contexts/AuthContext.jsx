@@ -54,6 +54,22 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
+  const resolveErrorMessage = (error, fallback) => {
+    const apiError = error?.response?.data?.error ?? error?.response?.data?.message;
+    if (typeof apiError === 'string') return apiError;
+    if (apiError && typeof apiError === 'object') {
+      if (typeof apiError.message === 'string') return apiError.message;
+      if (typeof apiError.code === 'string') return `${apiError.code}: ${apiError.message || fallback}`;
+      try {
+        return JSON.stringify(apiError);
+      } catch (stringifyError) {
+        return fallback;
+      }
+    }
+    if (typeof error?.message === 'string') return error.message;
+    return fallback;
+  };
+
   const register = async (userData) => {
     try {
       const { data } = await axios.post('/auth/register', userData);
@@ -62,7 +78,7 @@ export const AuthProvider = ({ children }) => {
       toast.success('Account created successfully!');
       return data;
     } catch (error) {
-      const message = error.response?.data?.error || 'Registration failed';
+      const message = resolveErrorMessage(error, 'Registration failed');
       toast.error(message);
       throw error;
     }
@@ -76,7 +92,7 @@ export const AuthProvider = ({ children }) => {
       toast.success('Welcome back!');
       return data;
     } catch (error) {
-      const message = error.response?.data?.error || 'Login failed';
+      const message = resolveErrorMessage(error, 'Login failed');
       toast.error(message);
       throw error;
     }

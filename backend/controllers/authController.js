@@ -4,8 +4,18 @@ const { validationResult } = require('express-validator');
 const { User } = require('../models/index');
 const { sendEmail } = require('../utils/email');
 
+const assertJwtSecrets = () => {
+  const missing = [];
+  if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
+  if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
+  if (missing.length > 0) {
+    throw new Error(`Server misconfigured: missing ${missing.join(', ')}`);
+  }
+};
+
 // Generate JWT Token
 const generateToken = (id) => {
+  assertJwtSecrets();
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
@@ -13,6 +23,7 @@ const generateToken = (id) => {
 
 // Generate Refresh Token
 const generateRefreshToken = (id) => {
+  assertJwtSecrets();
   return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
   });
@@ -124,7 +135,7 @@ exports.login = async (req, res, next) => {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      error: 'Login failed'
+      error: error.message || 'Login failed'
     });
   }
 };
