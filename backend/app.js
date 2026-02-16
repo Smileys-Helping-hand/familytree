@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
@@ -50,17 +49,8 @@ const createApp = () => {
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(cookieParser());
 
-  // MongoDB connection (optional fallback)
   if (process.env.NODE_ENV !== 'test') {
-    if (process.env.MONGODB_URI && process.env.MONGODB_URI !== 'mongodb://localhost:27017/familytree') {
-      mongoose.connect(process.env.MONGODB_URI)
-        .then(() => console.log('✅ MongoDB connected successfully'))
-        .catch(() => {
-          console.log('⚠️  MongoDB not connected (using PostgreSQL)');
-        });
-    } else {
-      console.log('📝 Using PostgreSQL as primary database');
-    }
+    console.log('📝 Using PostgreSQL as primary database');
   }
 
   // Routes
