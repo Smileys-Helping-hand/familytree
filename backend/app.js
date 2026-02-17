@@ -25,7 +25,7 @@ const isTrustedVercelOrigin = (origin) => {
   try {
     const { hostname, protocol } = new URL(origin);
     if (protocol !== 'https:') return false;
-    return /^familytree(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
+      return /^familytree(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
   } catch (error) {
     return false;
   }
