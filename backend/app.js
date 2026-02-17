@@ -15,7 +15,20 @@ const activityRoutes = require('./routes/activity');
 
 const buildAllowedOrigins = () => {
   const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
-  return raw.split(',').map((origin) => origin.trim()).filter(Boolean);
+  const configured = raw.split(',').map((origin) => origin.trim()).filter(Boolean);
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+
+  return [...new Set([...configured, ...(vercelUrl ? [vercelUrl] : [])])];
+};
+
+const isTrustedVercelOrigin = (origin) => {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    return /^familytree(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
+  } catch (error) {
+    return false;
+  }
 };
 
 const buildConfigReadiness = () => ({
@@ -53,8 +66,13 @@ const createApp = () => {
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error('Not allowed by CORS'));
+      if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      const corsError = new Error('Not allowed by CORS');
+      corsError.statusCode = 403;
+      return callback(corsError);
     },
     credentials: true
   }));
