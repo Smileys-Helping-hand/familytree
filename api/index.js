@@ -1,32 +1,41 @@
-const { createApp } = require('../backend/app');
 const { testConnection } = require('../backend/config/database');
 
-const app = createApp();
+let app;
 let initializationPromise;
 const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+const getApp = () => {
+	if (!app) {
+		const { createApp } = require('../backend/app');
+		app = createApp();
+	}
+
+	return app;
+};
 
 const initialize = async () => {
 	if (!initializationPromise) {
 		initializationPromise = (async () => {
+			const appInstance = getApp();
 			try {
 				const connected = await testConnection();
 				if (!connected) {
 					throw new Error('Database connection failed');
 				}
 
-				app.locals.startupStatus.dbConnected = true;
+				appInstance.locals.startupStatus.dbConnected = true;
 				if (isServerlessRuntime) {
-					app.locals.startupStatus.dbSynced = true;
+					appInstance.locals.startupStatus.dbSynced = true;
 				} else {
 					const { syncDatabase } = require('../backend/models/index');
 					await syncDatabase();
-					app.locals.startupStatus.dbSynced = true;
+					appInstance.locals.startupStatus.dbSynced = true;
 				}
-				app.locals.startupStatus.initialized = true;
-				app.locals.startupStatus.initializedAt = new Date().toISOString();
-				app.locals.startupStatus.lastError = null;
+				appInstance.locals.startupStatus.initialized = true;
+				appInstance.locals.startupStatus.initializedAt = new Date().toISOString();
+				appInstance.locals.startupStatus.lastError = null;
 			} catch (error) {
-				app.locals.startupStatus.lastError = error.message;
+				appInstance.locals.startupStatus.lastError = error.message;
 				throw error;
 			}
 		})();
@@ -38,12 +47,12 @@ const initialize = async () => {
 module.exports = async (req, res) => {
 	try {
 		await initialize();
-		return app(req, res);
+		return getApp()(req, res);
 	} catch (error) {
 		console.error('❌ API initialization failed:', error.message);
 		return res.status(503).json({
 			success: false,
-			error: 'Service unavailable. Please try again shortly.'
+			error: `Service unavailable. ${error.message}`
 		});
 	}
 };
