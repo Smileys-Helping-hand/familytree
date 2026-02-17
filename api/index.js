@@ -1,5 +1,3 @@
-const { testConnection } = require('../backend/config/database');
-
 let app;
 let initializationPromise;
 const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
@@ -16,8 +14,9 @@ const getApp = () => {
 const initialize = async () => {
 	if (!initializationPromise) {
 		initializationPromise = (async () => {
-			const appInstance = getApp();
 			try {
+				const appInstance = getApp();
+				const { testConnection } = require('../backend/config/database');
 				const connected = await testConnection();
 				if (!connected) {
 					throw new Error('Database connection failed');
@@ -35,7 +34,9 @@ const initialize = async () => {
 				appInstance.locals.startupStatus.initializedAt = new Date().toISOString();
 				appInstance.locals.startupStatus.lastError = null;
 			} catch (error) {
-				appInstance.locals.startupStatus.lastError = error.message;
+				if (app && app.locals && app.locals.startupStatus) {
+					app.locals.startupStatus.lastError = error.message;
+				}
 				throw error;
 			}
 		})();
