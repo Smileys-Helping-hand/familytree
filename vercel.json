@@ -4,15 +4,7 @@
   "functions": {
     "api/index.js": {
       "runtime": "nodejs20.x",
-      "includeFiles": [
-        "backend/**",
-        "node_modules/pg/**",
-        "node_modules/pg-hstore/**",
-        "node_modules/sequelize/**",
-        "backend/node_modules/pg/**",
-        "backend/node_modules/pg-hstore/**",
-        "backend/node_modules/sequelize/**"
-      ]
+      "includeFiles": "{backend/**,node_modules/pg/**,node_modules/pg-hstore/**,node_modules/sequelize/**,backend/node_modules/pg/**,backend/node_modules/pg-hstore/**,backend/node_modules/sequelize/**}"
     }
   },
   "installCommand": "npm install; npm install --prefix backend; npm install --prefix frontend",
