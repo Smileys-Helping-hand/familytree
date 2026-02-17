@@ -1,4 +1,5 @@
 const { Sequelize } = require('sequelize');
+const pg = require('pg');
 
 const isTestEnv = process.env.NODE_ENV === 'test';
 
@@ -12,6 +13,7 @@ const sequelize = isTestEnv
     })
   : new Sequelize(databaseUrl || fallbackDatabaseUrl, {
       dialect: 'postgres',
+      dialectModule: pg,
       dialectOptions: {
         ssl: {
           require: true,
