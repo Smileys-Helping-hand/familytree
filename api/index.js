@@ -1,9 +1,9 @@
 const { createApp } = require('../backend/app');
 const { testConnection } = require('../backend/config/database');
-const { syncDatabase } = require('../backend/models/index');
 
 const app = createApp();
 let initializationPromise;
+const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 const initialize = async () => {
 	if (!initializationPromise) {
@@ -15,8 +15,13 @@ const initialize = async () => {
 				}
 
 				app.locals.startupStatus.dbConnected = true;
-				await syncDatabase();
-				app.locals.startupStatus.dbSynced = true;
+				if (isServerlessRuntime) {
+					app.locals.startupStatus.dbSynced = true;
+				} else {
+					const { syncDatabase } = require('../backend/models/index');
+					await syncDatabase();
+					app.locals.startupStatus.dbSynced = true;
+				}
 				app.locals.startupStatus.initialized = true;
 				app.locals.startupStatus.initializedAt = new Date().toISOString();
 				app.locals.startupStatus.lastError = null;
