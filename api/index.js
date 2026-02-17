@@ -1,6 +1,23 @@
 let app;
 let initializationPromise;
 const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const STARTUP_TIMEOUT_MS = 8000;
+
+const withTimeout = async (promise, timeoutMs, message) => {
+	let timeoutId;
+
+	const timeoutPromise = new Promise((_, reject) => {
+		timeoutId = setTimeout(() => {
+			reject(new Error(message));
+		}, timeoutMs);
+	});
+
+	try {
+		return await Promise.race([promise, timeoutPromise]);
+	} finally {
+		clearTimeout(timeoutId);
+	}
+};
 
 const getApp = () => {
 	if (!app) {
@@ -17,7 +34,11 @@ const initialize = async () => {
 			try {
 				const appInstance = getApp();
 				const { testConnection } = require('../backend/config/database');
-				const connected = await testConnection();
+				const connected = await withTimeout(
+					testConnection(),
+					STARTUP_TIMEOUT_MS,
+					`Startup timed out after ${STARTUP_TIMEOUT_MS}ms`
+				);
 				if (!connected) {
 					throw new Error('Database connection failed');
 				}

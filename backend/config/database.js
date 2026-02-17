@@ -16,13 +16,14 @@ const sequelize = isTestEnv
         ssl: {
           require: true,
           rejectUnauthorized: false
-        }
+        },
+        connectionTimeoutMillis: 8000
       },
       logging: false, // Set to console.log to see SQL queries
       pool: {
         max: 5,
         min: 0,
-        acquire: 30000,
+        acquire: 8000,
         idle: 10000
       }
     });
