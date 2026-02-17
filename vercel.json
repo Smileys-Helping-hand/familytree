@@ -3,6 +3,7 @@
   "framework": "vite",
   "functions": {
     "api/index.js": {
+      "runtime": "nodejs20.x",
       "includeFiles": [
         "backend/**",
         "node_modules/pg/**",
