@@ -4,10 +4,11 @@ const { validationResult } = require('express-validator');
 const { User } = require('../models/index');
 const { sendEmail } = require('../utils/email');
 
+const getRefreshSecret = () => process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+
 const assertJwtSecrets = () => {
   const missing = [];
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
-  if (!process.env.JWT_REFRESH_SECRET) missing.push('JWT_REFRESH_SECRET');
   if (missing.length > 0) {
     throw new Error(`Server misconfigured: missing ${missing.join(', ')}`);
   }
@@ -24,7 +25,7 @@ const generateToken = (id) => {
 // Generate Refresh Token
 const generateRefreshToken = (id) => {
   assertJwtSecrets();
-  return jwt.sign({ id }, process.env.JWT_REFRESH_SECRET, {
+  return jwt.sign({ id }, getRefreshSecret(), {
     expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
   });
 };
@@ -398,7 +399,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, getRefreshSecret());
     const user = await User.findByPk(decoded.id);
 
     if (!user) {

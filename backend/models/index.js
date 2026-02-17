@@ -511,6 +511,7 @@ const syncDatabase = async () => {
     console.log('📊 Database tables synchronized');
   } catch (error) {
     console.error('❌ Error syncing database:', error.message);
+    throw error;
   }
 };
 

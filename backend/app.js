@@ -18,8 +18,23 @@ const buildAllowedOrigins = () => {
   return raw.split(',').map((origin) => origin.trim()).filter(Boolean);
 };
 
+const buildConfigReadiness = () => ({
+  databaseUrlConfigured: Boolean(process.env.DATABASE_URL),
+  jwtSecretConfigured: Boolean(process.env.JWT_SECRET),
+  jwtRefreshSecretConfigured: Boolean(process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET),
+  clientUrlConfigured: Boolean(process.env.CLIENT_URL || process.env.FRONTEND_URL)
+});
+
 const createApp = () => {
   const app = express();
+
+  app.locals.startupStatus = {
+    initialized: false,
+    dbConnected: false,
+    dbSynced: false,
+    initializedAt: null,
+    lastError: null
+  };
 
   app.set('trust proxy', 1);
 
@@ -63,10 +78,31 @@ const createApp = () => {
 
   // Health check
   app.get('/api/health', (req, res) => {
+    const startupStatus = app.locals.startupStatus || {};
+
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      uptime: process.uptime()
+      uptime: process.uptime(),
+      startup: {
+        ...startupStatus,
+        config: buildConfigReadiness()
+      }
+    });
+  });
+
+  app.get('/api/health/startup', (req, res) => {
+    const startupStatus = app.locals.startupStatus || {};
+    const ready = Boolean(startupStatus.initialized && startupStatus.dbConnected && startupStatus.dbSynced);
+
+    res.status(ready ? 200 : 503).json({
+      success: ready,
+      ready,
+      startup: {
+        ...startupStatus,
+        config: buildConfigReadiness()
+      },
+      timestamp: new Date().toISOString()
     });
   });
 
