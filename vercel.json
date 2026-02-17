@@ -1,6 +1,16 @@
 {
   "version": 2,
   "framework": "vite",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": [
+        "backend/**",
+        "node_modules/pg/**",
+        "node_modules/pg-hstore/**",
+        "node_modules/sequelize/**"
+      ]
+    }
+  },
   "installCommand": "npm install; npm install --prefix backend; npm install --prefix frontend",
   "buildCommand": "npm run build --prefix frontend",
   "outputDirectory": "frontend/dist",
