@@ -1010,8 +1010,29 @@ export default function FamilyTree() {
                     </select>
                   </div>
                   {inviteToken && (
-                    <div className="rounded-lg bg-primary-50 border border-primary-200 p-3 text-sm text-primary-700">
-                      Invite token: <span className="font-semibold">{inviteToken}</span>
+                    <div className="rounded-lg bg-primary-50 border border-primary-200 p-3 text-sm text-primary-700 flex flex-col gap-2">
+                      <span className="font-semibold">Invite link:</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          className="input flex-1 bg-primary-25 border-primary-200 text-primary-700 font-mono text-xs"
+                          value={`${window.location.origin}/join/${inviteToken}`}
+                          style={{ minWidth: 0 }}
+                          onFocus={e => e.target.select()}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-primary"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/join/${inviteToken}`);
+                            toast.success('Invite link copied!');
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <span className="text-xs text-gray-500">Share this link with your family member so they can join directly.</span>
                     </div>
                   )}
                   <div className="flex gap-3 pt-2">
