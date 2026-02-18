@@ -1,3 +1,4 @@
+const { syncMemberToFamilyVerse } = require('../utils/familyverseSync');
 // @desc    Export family tree as JSON for external ingestion
 exports.exportFamilyTree = async (req, res) => {
   try {
@@ -139,6 +140,23 @@ exports.createMember = async (req, res) => {
       metadata: { memberId: member.id }
     });
 
+    // Sync to FamilyVerse (do not block response)
+    syncMemberToFamilyVerse({
+      id: member.id,
+      familyId: member.familyId,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      gender: member.gender,
+      birthDate: member.birthDate,
+      deathDate: member.deathDate,
+      isLiving: member.isLiving,
+      photo: member.photo,
+      biography: member.biography,
+      email: member.email,
+      phone: member.phone,
+      relationships: member.relationships,
+      treePosition: member.treePosition
+    });
     res.status(201).json({
       success: true,
       member
