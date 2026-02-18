@@ -1,22 +1,27 @@
 {
   "version": 2,
-  "framework": "vite",
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "{backend/**,node_modules/pg/**,node_modules/pg-hstore/**,node_modules/sequelize/**,backend/node_modules/pg/**,backend/node_modules/pg-hstore/**,backend/node_modules/sequelize/**}"
-    }
-  },
-  "installCommand": "npm install; npm install --prefix backend; npm install --prefix frontend",
-  "buildCommand": "npm run build --prefix frontend",
-  "outputDirectory": "frontend/dist",
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api"
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "frontend/dist"
+      }
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "backend/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/dist/index.html"
     }
   ]
 }
