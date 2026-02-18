@@ -52,6 +52,7 @@ exports.createFamily = async (req, res) => {
 // @desc    Get all families user belongs to
 exports.getMyFamilies = async (req, res) => {
   try {
+    // Only show families the user is a member of or created
     const families = await Family.findAll({
       include: [
         {
@@ -63,7 +64,8 @@ exports.getMyFamilies = async (req, res) => {
           model: FamilyMembership,
           as: 'memberships',
           attributes: ['role', 'userId'],
-          required: false
+          required: true,
+          where: { userId: req.user.id }
         }
       ],
       where: {
