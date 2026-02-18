@@ -26,6 +26,8 @@ exports.createFamily = async (req, res) => {
       userId: req.user.id,
       role: 'admin'
     });
+    // Set household privacy to private by default
+    await family.update({ settings: { ...family.settings, privacy: 'private' } });
 
     await recordActivity({
       familyId: family.id,
@@ -154,7 +156,7 @@ exports.updateFamily = async (req, res) => {
       where: { familyId: family.id, userId: req.user.id }
     });
 
-    if (family.createdBy !== req.user.id && membership?.role !== 'admin') {
+    if (family.createdBy !== req.user.id && !['admin', 'editor'].includes(membership?.role)) {
       return res.status(403).json({
         success: false,
         error: 'Access denied'
@@ -244,7 +246,7 @@ exports.inviteMember = async (req, res) => {
       where: { familyId, userId: req.user.id }
     });
 
-    if (family.createdBy !== req.user.id && membership?.role !== 'admin') {
+    if (family.createdBy !== req.user.id && !['admin', 'editor'].includes(membership?.role)) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
@@ -335,7 +337,7 @@ exports.removeMember = async (req, res) => {
       where: { familyId, userId: req.user.id }
     });
 
-    if (family.createdBy !== req.user.id && requester?.role !== 'admin') {
+    if (family.createdBy !== req.user.id && !['admin', 'editor'].includes(requester?.role)) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
@@ -385,7 +387,7 @@ exports.updateMemberRole = async (req, res) => {
       where: { familyId, userId: req.user.id }
     });
 
-    if (family.createdBy !== req.user.id && requester?.role !== 'admin') {
+    if (family.createdBy !== req.user.id && !['admin', 'editor'].includes(requester?.role)) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
