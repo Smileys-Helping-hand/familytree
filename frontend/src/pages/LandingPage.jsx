@@ -112,7 +112,7 @@ export default function LandingPage() {
             and keep your heritage alive forever.
           </motion.p>
           
-          <motion.div variants={itemVariants} className="flex justify-center gap-4">
+          <motion.div variants={itemVariants} className="flex flex-wrap justify-center gap-4">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link to="/register" className="btn btn-primary flex items-center text-lg px-8 py-4">
                 Start Free <ArrowRight size={20} className="ml-2" />
@@ -121,6 +121,11 @@ export default function LandingPage() {
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link to="/pricing" className="btn bg-white border-2 border-gray-300 text-gray-700 hover:border-primary-500 hover:text-primary-700 flex items-center text-lg px-8 py-4">
                 View Pricing
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/join" className="btn bg-emerald-600 text-white hover:bg-emerald-700 flex items-center text-lg px-8 py-4">
+                Join with Invite
               </Link>
             </motion.div>
           </motion.div>
