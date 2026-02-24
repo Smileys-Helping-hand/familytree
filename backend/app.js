@@ -125,7 +125,7 @@ const createApp = () => {
   });
 
   // Error handling middleware for API routes
-  app.use('/api/*', (err, req, res, next) => {
+  app.use('/api', (err, req, res, next) => {
     console.error('Error:', err.stack);
 
     const statusCode = err.statusCode || 500;

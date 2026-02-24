@@ -21,12 +21,38 @@ export const getLayoutedElements = (nodes, edges, direction = 'TB', layoutEdges 
     marginy: 50,      // Graph margin Y
   });
 
-  // Add nodes to the graph
+  // Sort siblings by age and group horizontally
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  let processed = new Set();
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { 
-      width: 200,  // Match the FamilyNode width
-      height: 280  // Approximate height of FamilyNode with all elements
-    });
+    if (processed.has(node.id)) return;
+    const member = node.data?.member;
+    const siblings = (member?.relationships?.siblings || []).filter(id => nodeMap.has(id));
+    if (siblings.length > 0) {
+      // Collect all siblings including self
+      const siblingNodes = [node, ...siblings.map(id => nodeMap.get(id))];
+      // Sort by birthdate (oldest left)
+      siblingNodes.sort((a, b) => {
+        const aBirth = a.data?.member?.birthDate || '';
+        const bBirth = b.data?.member?.birthDate || '';
+        return aBirth < bBirth ? -1 : aBirth > bBirth ? 1 : 0;
+      });
+      siblingNodes.forEach((sib, idx) => {
+        dagreGraph.setNode(sib.id, {
+          width: 200,
+          height: 280,
+          siblingGroup: node.id,
+          siblingIndex: idx
+        });
+        processed.add(sib.id);
+      });
+    } else {
+      dagreGraph.setNode(node.id, {
+        width: 200,
+        height: 280
+      });
+      processed.add(node.id);
+    }
   });
 
   // Add edges to the graph

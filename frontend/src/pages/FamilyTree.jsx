@@ -194,18 +194,36 @@ export default function FamilyTree() {
   });
 
   const nodes = useMemo(() => filteredMembers.map((member) => {
+    // Group siblings and sort by birthDate
     const memberId = getMemberId(member);
-    return {
-      id: memberId,
-      type: 'familyNode',
-      data: {
-        member,
-        onClick: () => navigate(`/member/${memberId}`),
-        onEdit: () => setSelectedMember(member),
-      },
-      position: { x: 0, y: 0 },
-    };
-  }), [filteredMembers, navigate]);
+    const siblings = member.relationships?.siblings || [];
+    let siblingGroup = [member];
+    if (siblings.length > 0) {
+      siblingGroup = [member, ...filteredMembers.filter(m => siblings.includes(getMemberId(m)))];
+      siblingGroup = Array.from(new Set(siblingGroup));
+      siblingGroup.sort((a, b) => {
+        const aBirth = a.birthDate || '';
+        const bBirth = b.birthDate || '';
+        return aBirth < bBirth ? -1 : aBirth > bBirth ? 1 : 0;
+      });
+    }
+    // Only add each sibling node once
+    if (siblingGroup[0] !== member) return null;
+    return siblingGroup.map((sib, idx) => {
+      const sibId = getMemberId(sib);
+      return {
+        id: sibId,
+        type: 'familyNode',
+        data: {
+          member: sib,
+          onClick: () => navigate(`/member/${sibId}`),
+          onEdit: () => setSelectedMember(sib),
+        },
+        position: { x: 0, y: 0 },
+        siblingIndex: idx
+      };
+    });
+  }).flat().filter(Boolean), [filteredMembers, navigate]);
 
   const edges = useMemo(() => {
     const edgesArr = [];
@@ -983,6 +1001,7 @@ export default function FamilyTree() {
                       toast.error('Email is required');
                       return;
                     }
+                    toast.loading('Sending invitation...');
                     inviteMutation.mutate(inviteForm);
                   }}
                   className="space-y-4"

@@ -1,11 +1,11 @@
-// @route   GET /api/members/family/:familyId/tree/export
-// @desc    Export family tree as JSON (public/external API)
-// @access  Public (read-only)
-router.get('/family/:familyId/tree/export', require('../controllers/memberController').exportFamilyTree);
 const express = require('express');
 const router = express.Router();
 const memberController = require('../controllers/memberController');
 const { protect } = require('../middleware/auth');
+// @route   GET /api/members/family/:familyId/tree/export
+// @desc    Export family tree as JSON (public/external API)
+// @access  Public (read-only)
+router.get('/family/:familyId/tree/export', require('../controllers/memberController').exportFamilyTree);
 
 // @route   POST /api/members
 // @desc    Create a family member

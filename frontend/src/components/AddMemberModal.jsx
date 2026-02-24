@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { memberAPI } from '../services/api';
@@ -5,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Calendar, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageUploader from '../components/ImageUploader';
+import { syncMemberToFamilyVerse } from '../utils/familyverseSync';
 
 export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
   const queryClient = useQueryClient();
@@ -44,7 +46,12 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
 
   const createMemberMutation = useMutation({
     mutationFn: (data) => memberAPI.create({ ...data, familyId }),
-    onSuccess: () => {
+    onSuccess: async (response, variables) => {
+      // Sync to FamilyVerse after successful creation
+      // Use response?.data if available, otherwise use variables (formData)
+      const memberData = response?.data || { ...variables, familyId };
+      await syncMemberToFamilyVerse(memberData);
+
       queryClient.invalidateQueries(['family-members', familyId]);
       queryClient.invalidateQueries(['families']);
       toast.success('Family member added successfully!');

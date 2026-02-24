@@ -13,6 +13,7 @@ import MemberProfile from './pages/MemberProfile';
 import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
 import NotFound from './pages/NotFound';
+import JoinFamily from './pages/JoinFamily';
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -50,6 +51,7 @@ function App() {
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/join/:token" element={<JoinFamily />} />
       <Route 
         path="/login" 
         element={
