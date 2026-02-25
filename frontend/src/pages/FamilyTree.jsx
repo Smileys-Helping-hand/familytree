@@ -1,4 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toPng } from 'html-to-image';
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+
+  // Image Export
+  const downloadTreeImage = async () => {
+    if (!reactFlowInstance) return;
+    // Save current zoom/center
+    const viewport = document.querySelector('.react-flow__viewport');
+    const rf = document.querySelector('.react-flow');
+    if (!rf) return;
+    const prevTransform = rf.style.transform;
+    // Reset zoom/center
+    reactFlowInstance.setTransform({ x: 0, y: 0, zoom: 1 });
+    await new Promise(r => setTimeout(r, 300)); // Wait for layout
+    try {
+      const dataUrl = await toPng(viewport || rf, { pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'family-tree.png';
+      link.click();
+      toast.success('Image exported!');
+    } catch (err) {
+      toast.error('Export failed');
+    }
+    // Restore zoom/center
+    rf.style.transform = prevTransform;
+    reactFlowInstance.fitView({ padding: 0.2, includeHiddenNodes: false });
+  };
+
+  // Share Link
+  const handleShare = () => {
+    const url = `${window.location.origin}/shared-tree/${familyId}`;
+    setShareLink(url);
+    navigator.clipboard.writeText(url);
+    setShowShareModal(true);
+    toast.success('Share link copied!');
+  };
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { memberAPI, familyAPI } from '../services/api';
@@ -9,8 +47,11 @@ import { Plus, X, Users, UserPlus, Search, Link2, Unlink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import FamilyNode from '../components/FamilyNode';
 import AddMemberModal from '../components/AddMemberModal';
+import AIGeneratorModal from '../components/AIGeneratorModal';
 import { getLayoutedElements, layoutNodesInGrid } from '../utils/treeLayout';
 import { buildMemberIndex, computeRelationshipLabel } from '../utils/relationshipCalculator';
+import { aiAPI } from '../services/ai';
+import MemberDetailsPanel from '../components/MemberDetailsPanel';
 
 export default function FamilyTree() {
   const { familyId: familyIdParam } = useParams();
@@ -35,6 +76,8 @@ export default function FamilyTree() {
   const [optimisticLinks, setOptimisticLinks] = useState([]);
   const [undoStack, setUndoStack] = useState([]);
   const [autoLayout, setAutoLayout] = useState(true);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const getMemberId = (member) => String(member?.id || member?._id || '');
 
@@ -216,7 +259,7 @@ export default function FamilyTree() {
         type: 'familyNode',
         data: {
           member: sib,
-          onClick: () => navigate(`/member/${sibId}`),
+          onClick: () => handleNodeClick(sib),
           onEdit: () => setSelectedMember(sib),
         },
         position: { x: 0, y: 0 },
@@ -539,6 +582,63 @@ export default function FamilyTree() {
               <p className="text-gray-600 mt-1">Visualize your family connections</p>
             </div>
             <div className="flex gap-3 items-center">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={downloadTreeImage}
+                className="btn btn-secondary flex items-center gap-2"
+                disabled={!familyId}
+                title="Export as Image"
+              >
+                <span role="img" aria-label="download">⬇️</span>
+                Export as Image
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleShare}
+                className="btn btn-outline flex items-center gap-2"
+                disabled={!familyId}
+                title="Share family tree"
+              >
+                <span role="img" aria-label="link">🔗</span>
+                Share
+              </motion.button>
+                    {/* Share Modal */}
+                    {showShareModal && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-black/50" onClick={() => setShowShareModal(false)} />
+                        <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                          <h3 className="text-xl font-bold text-gray-900 mb-4">Share Family Tree</h3>
+                          <div className="flex items-center gap-2 mb-4">
+                            <input
+                              type="text"
+                              readOnly
+                              className="input flex-1 bg-primary-25 border-primary-200 text-primary-700 font-mono text-xs"
+                              value={shareLink}
+                              onFocus={e => e.target.select()}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-primary"
+                              onClick={() => {
+                                navigator.clipboard.writeText(shareLink);
+                                toast.success('Link copied!');
+                              }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary w-full"
+                            onClick={() => setShowShareModal(false)}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
               {families.length > 0 && (
                 <select
                   value={selectedFamilyId || ''}
@@ -576,6 +676,17 @@ export default function FamilyTree() {
               >
                 <UserPlus size={20} />
                 Invite
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAIModal(true)}
+                className="btn bg-gradient-to-r from-pink-500 to-indigo-500 text-white font-bold shadow-lg flex items-center gap-2"
+                disabled={!familyId}
+                title="Auto-generate family tree with AI"
+              >
+                <span role="img" aria-label="sparkles">✨</span>
+                Auto-Generate with AI
               </motion.button>
             </div>
           </motion.div>

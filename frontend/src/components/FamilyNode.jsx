@@ -8,7 +8,7 @@ import { Edit, Heart } from 'lucide-react';
  * Displays member information in a card format with handles for connections
  */
 const FamilyNode = memo(({ data }) => {
-  const { member, onEdit, onClick } = data;
+  const { member, onEdit, onClick, isReadOnly } = data;
 
   // Calculate age or lifespan
   const getYearDisplay = () => {
@@ -111,20 +111,22 @@ const FamilyNode = memo(({ data }) => {
             </span>
           </div>
 
-          {/* Edit Button - Shows on Hover */}
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium opacity-0 group-hover:opacity-100"
-          >
-            <Edit size={14} />
-            <span>Edit</span>
-          </motion.button>
+          {/* Edit Button - Shows on Hover, hidden if read-only */}
+          {!isReadOnly && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium opacity-0 group-hover:opacity-100"
+            >
+              <Edit size={14} />
+              <span>Edit</span>
+            </motion.button>
+          )}
         </div>
 
         {/* Gradient Overlay on Hover */}

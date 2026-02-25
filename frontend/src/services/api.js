@@ -67,7 +67,9 @@ export const memberAPI = {
   delete: (id) => api.delete(`/members/${id}`),
   getTree: (familyId) => api.get(`/members/family/${familyId}/tree`),
   addRelationship: (data) => api.post('/members/relationship', data),
-  removeRelationship: (data) => api.delete('/members/relationship', { data })
+  removeRelationship: (data) => api.delete('/members/relationship', { data }),
+  getMemories: (memberId) => api.get(`/memories/member/${memberId}`),
+  addMemory: (memberId, data) => api.post(`/memories/member/${memberId}`, data)
 };
 
 export const memoryAPI = {

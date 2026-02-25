@@ -138,6 +138,8 @@ const FamilyMembership = sequelize.define('FamilyMembership', {
   familyId: {
     type: DataTypes.UUID,
     allowNull: false,
+        FamilyMember.hasMany(Memory, { foreignKey: 'memberId', as: 'memories' });
+        Memory.belongsTo(FamilyMember, { foreignKey: 'memberId', as: 'member' });
     references: {
       model: 'families',
       key: 'id'

@@ -12,6 +12,7 @@ const memberRoutes = require('./routes/members');
 const memoryRoutes = require('./routes/memories');
 const eventRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
+const aiRoutes = require('./routes/ai');
 
 const buildAllowedOrigins = () => {
   const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
@@ -93,6 +94,7 @@ const createApp = () => {
   app.use('/api/memories', memoryRoutes);
   app.use('/api/events', eventRoutes);
   app.use('/api/activity', activityRoutes);
+  app.use('/api/ai', aiRoutes);
 
   // Health check
   app.get('/api/health', (req, res) => {

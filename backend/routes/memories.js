@@ -1,3 +1,12 @@
+// @route   GET /api/memories/member/:memberId
+// @desc    Get all memories for a member
+// @access  Private
+router.get('/member/:memberId', protect, memoryController.getMemoriesByMember);
+
+// @route   POST /api/memories/member/:memberId
+// @desc    Create a memory for a member
+// @access  Private
+router.post('/member/:memberId', protect, memoryController.createMemory);
 const express = require('express');
 const router = express.Router();
 const memoryController = require('../controllers/memoryController');

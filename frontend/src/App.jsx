@@ -52,6 +52,7 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/join/:token" element={<JoinFamily />} />
+      <Route path="/shared-tree/:familyId" element={<SharedTree />} />
       <Route 
         path="/login" 
         element={
