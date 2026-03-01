@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -13,6 +13,8 @@ const memoryRoutes = require('./routes/memories');
 const eventRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
 const aiRoutes = require('./routes/ai');
+const subscriptionRoutes = require('./routes/subscriptions');
+const userRoutes = require('./routes/users');
 
 const buildAllowedOrigins = () => {
   const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
@@ -95,6 +97,8 @@ const createApp = () => {
   app.use('/api/events', eventRoutes);
   app.use('/api/activity', activityRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/subscriptions', subscriptionRoutes);
+  app.use('/api/users', userRoutes);
 
   // Health check
   app.get('/api/health', (req, res) => {

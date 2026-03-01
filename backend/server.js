@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const { createApp } = require('./app');
 const { testConnection } = require('./config/database');
 
@@ -6,7 +6,7 @@ let app;
 let initialized = false;
 
 async function initializeApp() {
-  if (initialized) return;
+  if (initialized) return app;
   const { syncDatabase } = require('./models/index');
   app = createApp();
   try {
@@ -22,11 +22,15 @@ async function initializeApp() {
     app.locals.startupStatus.lastError = null;
     initialized = true;
   } catch (error) {
-    app.locals.startupStatus.lastError = error.message;
+    if (app && app.locals && app.locals.startupStatus) {
+      app.locals.startupStatus.lastError = error.message;
+    }
     throw error;
   }
+  return app;
 }
 
+// For Vercel / serverless: export handler function
 module.exports = async (req, res) => {
   if (!initialized) {
     await initializeApp();
@@ -34,4 +38,19 @@ module.exports = async (req, res) => {
   return app(req, res);
 };
 
-module.exports = app;
+// For local development: start HTTP server
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  initializeApp()
+    .then((appInstance) => {
+      appInstance.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+        console.log(`📡 API available at http://localhost:${PORT}/api`);
+      });
+    })
+    .catch((error) => {
+      console.error('❌ Failed to start server:', error.message);
+      process.exit(1);
+    });
+}
+

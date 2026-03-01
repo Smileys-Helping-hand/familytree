@@ -1,36 +1,6 @@
-const { syncMemberToFamilyVerse } = require('../utils/familyverseSync');
-// @desc    Export family tree as JSON for external ingestion
-exports.exportFamilyTree = async (req, res) => {
-  try {
-    const { familyId } = req.params;
-    const family = await Family.findByPk(familyId);
-    if (!family) {
-      return res.status(404).json({ success: false, error: 'Family not found' });
-    }
-    // Only allow export if family privacy is not 'private'
-    if (family.settings?.privacy === 'private') {
-      return res.status(403).json({ success: false, error: 'This family tree is private' });
-    }
-    const members = await FamilyMember.findAll({ where: { familyId } });
-    res.json({
-      success: true,
-      family: {
-        id: family.id,
-        name: family.name,
-        description: family.description,
-        createdBy: family.createdBy,
-        stats: family.stats,
-        settings: family.settings
-      },
-      members: members.map(serializeMember)
-    });
-  } catch (error) {
-    console.error('Export family tree error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Failed to export family tree' });
-  }
-};
 const { FamilyMember, Family, FamilyMembership } = require('../models');
 const { recordActivity } = require('../utils/activity');
+const { syncMemberToFamilyVerse } = require('../utils/familyverseSync');
 
 const parseRelationships = (relationships) => {
   if (!relationships) return {};
@@ -75,6 +45,37 @@ const addUnique = (list, value) => {
 
 const removeValue = (list, value) => list.filter(item => item !== value);
 
+// @desc    Export family tree as JSON for external ingestion
+exports.exportFamilyTree = async (req, res) => {
+  try {
+    const { familyId } = req.params;
+    const family = await Family.findByPk(familyId);
+    if (!family) {
+      return res.status(404).json({ success: false, error: 'Family not found' });
+    }
+    // Only allow export if family privacy is not 'private'
+    if (family.settings?.privacy === 'private') {
+      return res.status(403).json({ success: false, error: 'This family tree is private' });
+    }
+    const members = await FamilyMember.findAll({ where: { familyId } });
+    res.json({
+      success: true,
+      family: {
+        id: family.id,
+        name: family.name,
+        description: family.description,
+        createdBy: family.createdBy,
+        stats: family.stats,
+        settings: family.settings
+      },
+      members: members.map(serializeMember)
+    });
+  } catch (error) {
+    console.error('Export family tree error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to export family tree' });
+  }
+};
+
 // @desc    Create family member
 exports.createMember = async (req, res) => {
   try {
@@ -105,6 +106,22 @@ exports.createMember = async (req, res) => {
         success: false,
         error: 'Access denied'
       });
+    }
+
+    // Enforce free plan member limit
+    const FREE_PLAN_LIMIT = 15;
+    const userSubscription = req.user.subscription || 'free';
+    if (userSubscription === 'free') {
+      const memberCount = await FamilyMember.count({ where: { familyId } });
+      if (memberCount >= FREE_PLAN_LIMIT) {
+        return res.status(403).json({
+          success: false,
+          error: `Free plan is limited to ${FREE_PLAN_LIMIT} family members. Upgrade to Premium for unlimited members.`,
+          limitReached: true,
+          limit: FREE_PLAN_LIMIT,
+          current: memberCount
+        });
+      }
     }
 
     const member = await FamilyMember.create({

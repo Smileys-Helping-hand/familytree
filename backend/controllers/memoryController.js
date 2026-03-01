@@ -155,6 +155,34 @@ exports.getFamilyMemories = async (req, res, next) => {
   }
 };
 
+// @desc    Get memories for a specific member (by taggedMembers)
+exports.getMemoriesByMember = async (req, res, next) => {
+  try {
+    const { memberId } = req.params;
+
+    const memories = await Memory.findAll({
+      order: [['date', 'DESC']]
+    });
+
+    // Filter memories that tag this member
+    const memberMemories = memories.filter((memory) => {
+      const tagged = memory.taggedMembers || [];
+      return tagged.some((tag) => {
+        if (typeof tag === 'string') return tag === memberId;
+        return tag?.memberId === memberId || tag?.id === memberId;
+      });
+    });
+
+    res.json({
+      success: true,
+      count: memberMemories.length,
+      memories: memberMemories
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get single memory
 exports.getMemory = async (req, res, next) => {
   try {

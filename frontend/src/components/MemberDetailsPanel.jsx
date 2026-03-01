@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 // Simple custom tabs implementation
 import { memberAPI } from '../services/api';
 import { aiAPI } from '../services/ai';
-import useFileUpload from '../hooks/useFileUpload';
+import { useFileUpload } from '../hooks/useFileUpload';
 
 export default function MemberDetailsPanel({ member, isOpen, onClose, isReadOnly }) {
   const [memories, setMemories] = useState([]);
   const [tab, setTab] = useState(0);
-  const { uploadFile } = useFirebaseUpload();
+  const { uploadFile } = useFileUpload();
 
   useEffect(() => {
     if (member?.id && isOpen) {

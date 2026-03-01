@@ -139,7 +139,7 @@ export default function LandingPage() {
             </span>
             <span className="mx-2">•</span>
             <span className="flex items-center gap-1">
-              <Heart size={16} className="text-red-500 fill-current" /> Free Forever Plan
+              <Heart size={16} className="text-red-500 fill-current" /> Start for Free
             </span>
             <span className="mx-2">•</span>
             <span className="flex items-center gap-1">

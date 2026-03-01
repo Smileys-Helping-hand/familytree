@@ -34,7 +34,7 @@ export default function SharedTree() {
       return;
     }
     // Build nodes and edges
-    const nodes = useMemo(() => members.map((member) => ({
+    const rawNodes = members.map((member) => ({
       id: String(member.id),
       type: 'familyNode',
       data: {
@@ -43,7 +43,8 @@ export default function SharedTree() {
         onClick: () => handleNodeClick(member),
       },
       position: { x: 0, y: 0 }
-    })), [members]);
+    }));
+    const nodes = rawNodes;
     const edges = [];
     members.forEach(member => {
       const rel = member.relationships || {};

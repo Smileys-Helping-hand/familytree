@@ -99,7 +99,7 @@ export default function Layout({ children }) {
                 >
                   <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                   <p className="text-xs text-primary-600 capitalize font-medium">
-                    {user?.subscription?.tier || 'Free'} Plan
+                    {(user?.subscription || 'free').replace('_', ' ')} Plan
                   </p>
                 </motion.div>
                 <motion.div 

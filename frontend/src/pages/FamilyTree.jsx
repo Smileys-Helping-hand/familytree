@@ -1,42 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toPng } from 'html-to-image';
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareLink, setShareLink] = useState('');
-
-  // Image Export
-  const downloadTreeImage = async () => {
-    if (!reactFlowInstance) return;
-    // Save current zoom/center
-    const viewport = document.querySelector('.react-flow__viewport');
-    const rf = document.querySelector('.react-flow');
-    if (!rf) return;
-    const prevTransform = rf.style.transform;
-    // Reset zoom/center
-    reactFlowInstance.setTransform({ x: 0, y: 0, zoom: 1 });
-    await new Promise(r => setTimeout(r, 300)); // Wait for layout
-    try {
-      const dataUrl = await toPng(viewport || rf, { pixelRatio: 2 });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = 'family-tree.png';
-      link.click();
-      toast.success('Image exported!');
-    } catch (err) {
-      toast.error('Export failed');
-    }
-    // Restore zoom/center
-    rf.style.transform = prevTransform;
-    reactFlowInstance.fitView({ padding: 0.2, includeHiddenNodes: false });
-  };
-
-  // Share Link
-  const handleShare = () => {
-    const url = `${window.location.origin}/shared-tree/${familyId}`;
-    setShareLink(url);
-    navigator.clipboard.writeText(url);
-    setShowShareModal(true);
-    toast.success('Share link copied!');
-  };
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { memberAPI, familyAPI } from '../services/api';
@@ -52,11 +15,14 @@ import { getLayoutedElements, layoutNodesInGrid } from '../utils/treeLayout';
 import { buildMemberIndex, computeRelationshipLabel } from '../utils/relationshipCalculator';
 import { aiAPI } from '../services/ai';
 import MemberDetailsPanel from '../components/MemberDetailsPanel';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function FamilyTree() {
   const { familyId: familyIdParam } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const FREE_PLAN_LIMIT = 15;
   const [selectedFamilyId, setSelectedFamilyId] = useState(familyIdParam);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -78,6 +44,41 @@ export default function FamilyTree() {
   const [autoLayout, setAutoLayout] = useState(true);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+
+  // Image Export
+  const downloadTreeImage = async () => {
+    if (!reactFlowInstance) return;
+    const viewport = document.querySelector('.react-flow__viewport');
+    const rf = document.querySelector('.react-flow');
+    if (!rf) return;
+    const prevTransform = rf.style.transform;
+    reactFlowInstance.setTransform({ x: 0, y: 0, zoom: 1 });
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      const dataUrl = await toPng(viewport || rf, { pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'family-tree.png';
+      link.click();
+      toast.success('Image exported!');
+    } catch (err) {
+      toast.error('Export failed');
+    }
+    rf.style.transform = prevTransform;
+    reactFlowInstance.fitView({ padding: 0.2, includeHiddenNodes: false });
+  };
+
+  // Share Link
+  const handleShare = () => {
+    const currentFamilyId = familyIdParam || selectedFamilyId;
+    const url = `${window.location.origin}/shared-tree/${currentFamilyId}`;
+    setShareLink(url);
+    navigator.clipboard.writeText(url);
+    setShowShareModal(true);
+    toast.success('Share link copied!');
+  };
 
   const getMemberId = (member) => String(member?.id || member?._id || '');
 
@@ -541,6 +542,32 @@ export default function FamilyTree() {
 
   const nodeTypes = useMemo(() => ({ familyNode: FamilyNode }), []);
 
+  const isAtLimit = user?.subscription === 'free' && members.length >= FREE_PLAN_LIMIT;
+
+  const handleAIGenerate = async (prompt) => {
+    if (!familyId) {
+      toast.error('Please select a family first');
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const response = await aiAPI.generateTree(prompt, familyId);
+      const count = response?.data?.count || response?.data?.members?.length || 0;
+      toast.success(`Generated ${count} family member${count !== 1 ? 's' : ''} from your prompt!`);
+      queryClient.invalidateQueries(['family-members', familyId]);
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'AI generation failed';
+      if (err?.response?.data?.limitReached) {
+        toast.error(`Plan limit reached. Upgrade to Premium to add more members.`);
+      } else {
+        toast.error(msg);
+      }
+      throw err;
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   let content = null;
   if (!familyIdParam && families.length === 0 && !isLoading) {
     content = (
@@ -657,8 +684,8 @@ export default function FamilyTree() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowAddModal(true)}
                 className="btn btn-primary flex items-center gap-2"
-                disabled={!familyId}
-                title="Add a new family member"
+                disabled={!familyId || isAtLimit}
+                title={isAtLimit ? `Free plan limit of ${FREE_PLAN_LIMIT} members reached` : 'Add a new family member'}
               >
                 <Plus size={20} />
                 Add Member
@@ -682,8 +709,8 @@ export default function FamilyTree() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowAIModal(true)}
                 className="btn bg-gradient-to-r from-pink-500 to-indigo-500 text-white font-bold shadow-lg flex items-center gap-2"
-                disabled={!familyId}
-                title="Auto-generate family tree with AI"
+                disabled={!familyId || isAtLimit}
+                title={isAtLimit ? `Free plan limit of ${FREE_PLAN_LIMIT} members reached` : 'Auto-generate family tree with AI'}
               >
                 <span role="img" aria-label="sparkles">✨</span>
                 Auto-Generate with AI
@@ -728,6 +755,28 @@ export default function FamilyTree() {
               {filteredMembers.length} members
             </div>
           </motion.div>
+
+          {isAtLimit && (
+            <motion.div
+              className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-center justify-between gap-4"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-amber-500 text-xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-amber-800">Free plan limit reached ({FREE_PLAN_LIMIT} members)</p>
+                  <p className="text-sm text-amber-700">Upgrade to Premium for unlimited family members, storage, and more.</p>
+                </div>
+              </div>
+              <a
+                href="/pricing"
+                className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Upgrade
+              </a>
+            </motion.div>
+          )}
 
           {members.length > 0 && (
             <motion.div
@@ -1077,6 +1126,15 @@ export default function FamilyTree() {
             }}
             familyId={familyId}
             member={selectedMember}
+          />
+
+          <AIGeneratorModal
+            isOpen={showAIModal}
+            onClose={() => setShowAIModal(false)}
+            onGenerate={handleAIGenerate}
+            memberCount={members.length}
+            freeLimit={FREE_PLAN_LIMIT}
+            isPremium={user?.subscription !== 'free'}
           />
 
           {showInviteModal && (

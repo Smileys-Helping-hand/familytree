@@ -41,6 +41,11 @@ router.get('/me', protect, authController.getMe);
 // @access  Private
 router.put('/updatepassword', protect, authController.updatePassword);
 
+// @route   PUT /api/auth/change-password
+// @desc    Change password (alias for updatepassword)
+// @access  Private
+router.put('/change-password', protect, authController.updatePassword);
+
 // @route   POST /api/auth/forgotpassword
 // @desc    Request password reset
 // @access  Public

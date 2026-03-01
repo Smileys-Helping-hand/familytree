@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import Pricing from './pages/Pricing';
 import NotFound from './pages/NotFound';
 import JoinFamily from './pages/JoinFamily';
+import SharedTree from './pages/SharedTree';
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {

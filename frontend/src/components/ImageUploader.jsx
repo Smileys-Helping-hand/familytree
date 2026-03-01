@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Upload, Loader, X, AlertCircle } from 'lucide-react';
-import useFileUpload from '../hooks/useFileUpload';
+import { useFileUpload } from '../hooks/useFileUpload';
 
 /**
  * ImageUploader Component

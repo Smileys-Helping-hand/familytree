@@ -1,9 +1,12 @@
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { subscriptionAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 export default function Pricing() {
+  const [billing, setBilling] = useState('monthly'); // 'monthly' | 'annual'
+
   const handleSubscribe = async (tier) => {
     try {
       const { data } = await subscriptionAPI.createCheckout(tier);
@@ -16,11 +19,11 @@ export default function Pricing() {
   const plans = [
     {
       name: 'Free',
-      price: '$0',
-      period: 'forever',
+      price: 'R0',
+      period: '',
       description: 'Perfect for small families getting started',
       features: [
-        'Up to 100 family members',
+        'Up to 15 family members',
         '1 GB storage',
         'Basic family tree',
         '50 photos',
@@ -30,11 +33,13 @@ export default function Pricing() {
       cta: 'Get Started',
       action: () => window.location.href = '/register',
       highlighted: false,
+      badge: null,
     },
     {
       name: 'Premium',
-      price: '$9.99',
-      period: 'per month',
+      price: billing === 'annual' ? 'R300' : 'R50',
+      period: billing === 'annual' ? 'per year' : 'per month',
+      annualSaving: billing === 'annual' ? 'Save R300/yr vs monthly' : null,
       description: 'For growing families who want more',
       features: [
         'Unlimited family members',
@@ -47,13 +52,15 @@ export default function Pricing() {
         'Ad-free experience',
       ],
       cta: 'Upgrade to Premium',
-      action: () => handleSubscribe('premium'),
+      action: () => handleSubscribe(billing === 'annual' ? 'premium_annual' : 'premium'),
       highlighted: true,
+      badge: billing === 'annual' ? '2 months free' : null,
     },
     {
       name: 'Premium Plus',
-      price: '$19.99',
-      period: 'per month',
+      price: billing === 'annual' ? 'R600' : 'R100',
+      period: billing === 'annual' ? 'per year' : 'per month',
+      annualSaving: billing === 'annual' ? 'Save R600/yr vs monthly' : null,
       description: 'Ultimate package for serious genealogists',
       features: [
         'Everything in Premium',
@@ -66,8 +73,9 @@ export default function Pricing() {
         'White-glove support',
       ],
       cta: 'Upgrade to Premium Plus',
-      action: () => handleSubscribe('premium_plus'),
+      action: () => handleSubscribe(billing === 'annual' ? 'premium_plus_annual' : 'premium_plus'),
       highlighted: false,
+      badge: billing === 'annual' ? '2 months free' : null,
     },
   ];
 
@@ -75,13 +83,42 @@ export default function Pricing() {
     <div className="min-h-screen bg-gradient-to-b from-primary-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
             Choose Your Plan
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Start free and upgrade as your family tree grows. Cancel anytime.
           </p>
+        </div>
+
+        {/* Billing toggle */}
+        <div className="flex justify-center mb-12">
+          <div className="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+            <button
+              onClick={() => setBilling('monthly')}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                billing === 'monthly'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBilling('annual')}
+              className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${
+                billing === 'annual'
+                  ? 'bg-white text-gray-900 shadow'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Annual
+              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">
+                Save 50%
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Pricing Cards */}
@@ -107,8 +144,16 @@ export default function Pricing() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                 <div className="flex items-baseline justify-center">
                   <span className="text-5xl font-bold text-primary-600">{plan.price}</span>
-                  <span className="text-gray-600 ml-2">/{plan.period}</span>
+                  {plan.period && <span className="text-gray-600 ml-2">/{plan.period}</span>}
                 </div>
+                {plan.annualSaving && (
+                  <p className="text-green-600 text-sm font-semibold mt-1">{plan.annualSaving}</p>
+                )}
+                {plan.badge && billing === 'annual' && (
+                  <span className="inline-block mt-1 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">
+                    {plan.badge}
+                  </span>
+                )}
                 <p className="text-gray-600 mt-2">{plan.description}</p>
               </div>
 
