@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { memberAPI, familyAPI } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function FamilyTree() {
   const { familyId: familyIdParam } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const FREE_PLAN_LIMIT = 15;
@@ -44,6 +45,18 @@ export default function FamilyTree() {
   const [autoLayout, setAutoLayout] = useState(true);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [inlinePrompt, setInlinePrompt] = useState(() => location.state?.aiPrompt || '');
+  const [showInlinePrompt, setShowInlinePrompt] = useState(() => !!location.state?.aiPrompt);
+
+  // When navigated from Dashboard with a prompt, pre-populate but let user review
+  useEffect(() => {
+    if (location.state?.aiPrompt) {
+      setInlinePrompt(location.state.aiPrompt);
+      setShowInlinePrompt(true);
+      // Clear state so refresh doesn't re-populate
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, []);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLink, setShareLink] = useState('');
 
@@ -555,6 +568,8 @@ export default function FamilyTree() {
       const count = response?.data?.count || response?.data?.members?.length || 0;
       toast.success(`Generated ${count} family member${count !== 1 ? 's' : ''} from your prompt!`);
       queryClient.invalidateQueries(['family-members', familyId]);
+      setInlinePrompt('');
+      setShowInlinePrompt(false);
     } catch (err) {
       const msg = err?.response?.data?.error || 'AI generation failed';
       if (err?.response?.data?.limitReached) {
@@ -799,6 +814,70 @@ export default function FamilyTree() {
             </motion.div>
           )}
 
+          {/* Inline AI Prompt Bar (visible when tree has members) */}
+          {members.length > 0 && (
+            <motion.div
+              className="border border-indigo-200 rounded-xl bg-gradient-to-r from-indigo-50 to-pink-50 overflow-hidden"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowInlinePrompt((v) => !v)}
+                className="w-full flex items-center justify-between px-5 py-3 text-left"
+              >
+                <span className="flex items-center gap-2 font-semibold text-indigo-700">
+                  <span>✨</span> Generate more members with AI
+                </span>
+                <span className="text-indigo-400 text-lg">{showInlinePrompt ? '▲' : '▼'}</span>
+              </button>
+              <AnimatePresence>
+                {showInlinePrompt && (
+                  <motion.div
+                    key="ai-prompt-bar"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-5 pb-4">
+                      <textarea
+                        value={inlinePrompt}
+                        onChange={(e) => setInlinePrompt(e.target.value)}
+                        placeholder={`Describe more family members to add, e.g. "Add that David has a brother called Robert who married Patricia and has a son Mark."`}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent resize-none mb-3"
+                        disabled={aiLoading || isAtLimit}
+                      />
+                      <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+                        <p className="text-xs text-gray-500">
+                          AI will add new members and relationships to your existing tree.
+                        </p>
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => inlinePrompt.trim() && handleAIGenerate(inlinePrompt)}
+                          disabled={!inlinePrompt.trim() || aiLoading || isAtLimit || !familyId}
+                          className="shrink-0 px-5 py-2 bg-gradient-to-r from-pink-500 to-indigo-500 text-white font-bold rounded-lg shadow disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {aiLoading ? (
+                            <>
+                              <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>⏳</motion.span>
+                              Generating…
+                            </>
+                          ) : (
+                            <>✨ Generate</>
+                          )}
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
           <motion.div
             className="card p-0 overflow-hidden relative"
             style={{ height: '700px' }}
@@ -811,16 +890,66 @@ export default function FamilyTree() {
               <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-pink-200/40 blur-3xl rounded-full" />
             </div>
             {members.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
+              <div className="flex items-center justify-center h-full px-4">
+                <div className="w-full max-w-2xl text-center">
                   <motion.div
-                    animate={{ y: [0, -10, 0] }}
+                    animate={{ y: [0, -8, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
+                    className="mb-4"
                   >
-                    <Users size={64} className="mx-auto text-gray-300 mb-4" />
+                    <span className="text-6xl">🌳</span>
                   </motion.div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No family members yet</h3>
-                  <p className="text-gray-600 mb-6">Start building your family tree!</p>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Build Your Family Tree with AI</h3>
+                  <p className="text-gray-600 mb-6">
+                    Describe your family in plain text and let AI create the tree for you — or add members manually.
+                  </p>
+
+                  {/* Inline AI Prompt Box */}
+                  <div className="bg-white/80 backdrop-blur border border-indigo-200 rounded-2xl p-5 shadow-lg mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg">✨</span>
+                      <span className="font-semibold text-indigo-700">Describe your family</span>
+                    </div>
+                    <textarea
+                      value={inlinePrompt}
+                      onChange={(e) => setInlinePrompt(e.target.value)}
+                      placeholder={`e.g. "My grandparents are William and Rose. They had two sons: my father David and uncle Robert. David married Susan and they had me (Emily) and my sister Claire."`}
+                      rows={4}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent resize-none mb-3"
+                      disabled={aiLoading || isAtLimit}
+                    />
+                    <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+                      <p className="text-xs text-gray-500 text-left">
+                        Name people clearly, describe relationships (parent, child, spouse, sibling).
+                      </p>
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => inlinePrompt.trim() && handleAIGenerate(inlinePrompt)}
+                        disabled={!inlinePrompt.trim() || aiLoading || isAtLimit || !familyId}
+                        className="shrink-0 px-5 py-2 bg-gradient-to-r from-pink-500 to-indigo-500 text-white font-bold rounded-lg shadow disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {aiLoading ? (
+                          <>
+                            <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>⏳</motion.span>
+                            Generating…
+                          </>
+                        ) : (
+                          <>✨ Generate Family Tree</>
+                        )}
+                      </motion.button>
+                    </div>
+                    {isAtLimit && (
+                      <p className="text-xs text-amber-600 mt-2 text-left">Free plan limit reached. <a href="/pricing" className="underline font-semibold">Upgrade</a> to use AI generation.</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400 font-medium">or add manually</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}

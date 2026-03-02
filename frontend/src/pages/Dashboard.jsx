@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { activityAPI, familyAPI } from '../services/api';
-import { Plus, Users, Image, Calendar, TrendingUp, Heart, Sparkles, Activity } from 'lucide-react';
+import { Plus, Users, Image, Calendar, TrendingUp, Heart, Sparkles, Activity, Wand2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ActivityFeed from '../components/ActivityFeed';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [selectedFamilyForAI, setSelectedFamilyForAI] = useState('');
   const { data: familiesData, isLoading } = useQuery({
     queryKey: ['families'],
     queryFn: familyAPI.getAll,
@@ -205,6 +209,63 @@ export default function Dashboard() {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* AI Prompt Card */}
+      {families.length > 0 && (
+        <motion.div
+          className="card border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-pink-50"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-indigo-500 rounded-lg flex items-center justify-center">
+              <Wand2 size={20} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Generate Family Tree with AI</h2>
+              <p className="text-sm text-gray-500">Describe your family and let AI build the tree instantly</p>
+            </div>
+          </div>
+          <div className="flex flex-col md:flex-row gap-3">
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder={`e.g. "My grandparents are William and Rose. They had two sons: my father David and uncle Robert. David married Susan and they had me (Emily) and my sister Claire."`}
+              rows={3}
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent resize-none"
+            />
+            <div className="flex flex-col gap-2 md:w-56">
+              {families.length > 1 && (
+                <select
+                  value={selectedFamilyForAI || families[0]?.id || ''}
+                  onChange={(e) => setSelectedFamilyForAI(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                >
+                  {families.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  if (!aiPrompt.trim()) return;
+                  const fid = selectedFamilyForAI || families[0]?.id;
+                  if (!fid) return;
+                  navigate(`/family/${fid}/tree`, { state: { aiPrompt: aiPrompt.trim() } });
+                }}
+                disabled={!aiPrompt.trim()}
+                className="px-5 py-2 bg-gradient-to-r from-pink-500 to-indigo-500 text-white font-bold rounded-lg shadow hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+              >
+                <span>✨</span> Generate Tree
+              </motion.button>
+              <p className="text-xs text-gray-400 text-center">You'll be taken to the family tree page</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-8">
