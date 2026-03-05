@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { activityAPI, familyAPI } from '../services/api';
-import { Plus, Users, Image, Calendar, TrendingUp, Heart, Sparkles, Activity, Wand2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Plus, Users, Image, Calendar, TrendingUp, Heart, Sparkles, Activity, Wand2, HelpCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ActivityFeed from '../components/ActivityFeed';
 import { useAuth } from '../contexts/AuthContext';
+import { HowToGuideModal } from '../components/HowToGuide';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [aiPrompt, setAiPrompt] = useState('');
   const [selectedFamilyForAI, setSelectedFamilyForAI] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
   const { data: familiesData, isLoading } = useQuery({
     queryKey: ['families'],
     queryFn: familyAPI.getAll,
@@ -61,9 +63,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <HowToGuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
+
       {/* Header */}
       <motion.div 
-        className="flex justify-between items-center"
+        className="flex justify-between items-center flex-wrap gap-3"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -76,18 +80,30 @@ export default function Dashboard() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            Welcome back! Here's your family overview.
+            Welcome back, {user?.name?.split(' ')[0] || 'there'}! Here's your family overview.
           </motion.p>
         </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Link to="/create-family" className="btn btn-primary flex items-center">
-            <Plus size={20} className="mr-2" />
-            Create Family
-          </Link>
-        </motion.div>
+        <div className="flex items-center gap-3">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowGuide(true)}
+            className="btn btn-secondary flex items-center gap-2"
+            title="How to use Family Tree"
+          >
+            <HelpCircle size={18} />
+            How It Works
+          </motion.button>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Link to="/create-family" className="btn btn-primary flex items-center">
+              <Plus size={20} className="mr-2" />
+              Create Family
+            </Link>
+          </motion.div>
+        </div>
       </motion.div>
 
       {/* Stats Cards */}
@@ -298,17 +314,43 @@ export default function Dashboard() {
                 >
                   <Users size={48} className="mx-auto text-gray-400 mb-4" />
                 </motion.div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No families yet</h3>
-                <p className="text-gray-600 mb-6">Create your first family tree to get started!</p>
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Link to="/create-family" className="btn btn-primary inline-flex items-center">
-                    <Plus size={20} className="mr-2" />
-                    Create Your First Family
-                  </Link>
-                </motion.div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Welcome! Let's start your family tree 🌳</h3>
+                <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                  Create your first family, add members, and invite relatives to join. It only takes a few minutes!
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Link to="/create-family" className="btn btn-primary inline-flex items-center gap-2">
+                      <Plus size={20} />
+                      Create Your First Family
+                    </Link>
+                  </motion.div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowGuide(true)}
+                    className="btn btn-secondary inline-flex items-center gap-2"
+                  >
+                    <HelpCircle size={18} />
+                    See How It Works
+                  </motion.button>
+                </div>
+
+                {/* Quick Steps */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left mt-4">
+                  {[
+                    { icon: '🌳', step: '1', title: 'Create a Family', desc: 'Give your family tree a name' },
+                    { icon: '👥', step: '2', title: 'Add Members', desc: 'Add parents, children, spouses' },
+                    { icon: '📧', step: '3', title: 'Invite Relatives', desc: 'Send email invites to join' },
+                  ].map(({ icon, step, title, desc }) => (
+                    <div key={step} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <div className="text-2xl mb-2">{icon}</div>
+                      <p className="text-xs text-gray-500 font-medium">Step {step}</p>
+                      <p className="font-semibold text-gray-900 text-sm">{title}</p>
+                      <p className="text-xs text-gray-500 mt-1">{desc}</p>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             ) : (
               <motion.div 

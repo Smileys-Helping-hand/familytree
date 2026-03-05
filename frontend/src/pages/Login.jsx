@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Login() {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -22,6 +25,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(formData);
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       // Error handled in context
     } finally {

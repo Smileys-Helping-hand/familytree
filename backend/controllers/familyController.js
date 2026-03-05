@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { Family, User, FamilyMembership, FamilyInvite } = require('../models');
 const { recordActivity } = require('../utils/activity');
+const { sendEmail } = require('../utils/email');
 
 // @desc    Create a new family
 exports.createFamily = async (req, res) => {
@@ -271,7 +272,62 @@ exports.inviteMember = async (req, res) => {
       metadata: { inviteId: invite.id, email: invite.email, role: invite.role }
     });
 
-    res.status(201).json({ success: true, invite });
+    // Send the invite email — best-effort, don't fail the request if email is down
+    const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'https://thisisourfamilytree.co.za';
+    const inviteLink = `${frontendUrl}/join/${token}`;
+    const inviterName = req.user.name || 'A family member';
+    try {
+      await sendEmail({
+        to: invite.email,
+        subject: `${inviterName} invited you to join ${family.name} on Family Tree 🌳`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 40px 20px;">
+            <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+              <div style="background: linear-gradient(135deg, #4F46E5, #7C3AED); padding: 40px 32px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 8px;">🌳</div>
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">You're Invited!</h1>
+                <p style="color: #C7D2FE; margin: 8px 0 0 0; font-size: 16px;">Join your family tree on Family Tree</p>
+              </div>
+              <div style="padding: 40px 32px;">
+                <p style="font-size: 18px; color: #1F2937; margin: 0 0 16px 0;">Hi there! 👋</p>
+                <p style="font-size: 16px; color: #4B5563; margin: 0 0 24px 0;">
+                  <strong style="color: #4F46E5;">${inviterName}</strong> has invited you to join the
+                  <strong style="color: #4F46E5;">${family.name}</strong> family tree on Family Tree.
+                </p>
+                <p style="font-size: 15px; color: #6B7280; margin: 0 0 32px 0;">
+                  Your role will be: <span style="background: #EEF2FF; color: #4F46E5; padding: 4px 10px; border-radius: 20px; font-weight: 600; text-transform: capitalize;">${invite.role}</span>
+                </p>
+                <div style="text-align: center; margin: 0 0 32px 0;">
+                  <a href="${inviteLink}"
+                     style="display: inline-block; background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; text-decoration: none;
+                            padding: 16px 40px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 12px rgba(79,70,229,0.4);">
+                    ✅ Accept Invitation
+                  </a>
+                </div>
+                <div style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin: 0 0 24px 0;">
+                  <p style="font-size: 13px; color: #9CA3AF; margin: 0 0 8px 0;">Or copy this link:</p>
+                  <p style="font-size: 13px; color: #4F46E5; word-break: break-all; margin: 0; font-family: monospace;">${inviteLink}</p>
+                </div>
+                <div style="background: #FFFBEB; border-left: 4px solid #F59E0B; border-radius: 4px; padding: 12px 16px; margin: 0 0 24px 0;">
+                  <p style="font-size: 13px; color: #92400E; margin: 0;">
+                    ⏰ This invitation expires in <strong>7 days</strong>. You'll need to create an account or log in to accept it.
+                  </p>
+                </div>
+                <p style="font-size: 13px; color: #9CA3AF; text-align: center; margin: 0;">
+                  If you did not expect this invitation, you can safely ignore this email.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+        text: `${inviterName} invited you to join ${family.name} on Family Tree.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`
+      });
+    } catch (emailError) {
+      console.warn('Invite email could not be sent:', emailError.message);
+      // Don't fail — the invite link is still returned in the response
+    }
+
+    res.status(201).json({ success: true, invite, inviteLink });
   } catch (error) {
     console.error('Invite member error:', error);
     res.status(500).json({ success: false, error: error.message || 'Failed to invite member' });

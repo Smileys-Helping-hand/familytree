@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -7,6 +7,9 @@ import toast from 'react-hot-toast';
 
 export default function Register() {
   const { register } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -52,6 +55,7 @@ export default function Register() {
         email: formData.email,
         password: formData.password,
       });
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       // Error handled in context
     } finally {

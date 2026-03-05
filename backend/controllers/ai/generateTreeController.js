@@ -1,9 +1,6 @@
 const { OpenAI } = require('openai');
 const db = require('../../models');
 
-// Load your OpenAI API key from environment variables
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const FREE_PLAN_LIMIT = 15;
 
 /**
@@ -12,6 +9,17 @@ const FREE_PLAN_LIMIT = 15;
  * Returns: Array of created member records
  */
 exports.generateTree = async (req, res) => {
+  // Guard: require OpenAI key before doing anything — avoids crash at module load time
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'AI generation is currently unavailable. The service is not configured on this server.',
+      code: 'AI_NOT_CONFIGURED'
+    });
+  }
+
+  // Lazy-init OpenAI so it never throws at require() time
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
   const { prompt, familyId } = req.body;
   if (!prompt || !familyId) {
     return res.status(400).json({ error: 'Missing prompt or familyId' });

@@ -6,7 +6,7 @@ import { memberAPI, familyAPI } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactFlow, { Background, Controls, MiniMap, MarkerType, addEdge, useEdgesState, useNodesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus, X, Users, UserPlus, Search, Link2, Unlink } from 'lucide-react';
+import { Plus, X, Users, UserPlus, Search, Link2, Unlink, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import FamilyNode from '../components/FamilyNode';
 import AddMemberModal from '../components/AddMemberModal';
@@ -16,6 +16,7 @@ import { buildMemberIndex, computeRelationshipLabel } from '../utils/relationshi
 import { aiAPI } from '../services/ai';
 import MemberDetailsPanel from '../components/MemberDetailsPanel';
 import { useAuth } from '../contexts/AuthContext';
+import { HowToGuideModal, InviteGuideCard } from '../components/HowToGuide';
 
 export default function FamilyTree() {
   const { familyId: familyIdParam } = useParams();
@@ -32,6 +33,7 @@ export default function FamilyTree() {
   const [filterGender, setFilterGender] = useState('all');
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'viewer' });
   const [inviteToken, setInviteToken] = useState(null);
+  const [inviteLink, setInviteLink] = useState(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [relationshipMode, setRelationshipMode] = useState('add');
   const [relationshipForm, setRelationshipForm] = useState({
@@ -59,10 +61,18 @@ export default function FamilyTree() {
   }, []);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLink, setShareLink] = useState('');
+  const [showHowToGuide, setShowHowToGuide] = useState(false);
+
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+  const [memberPanelData, setMemberPanelData] = useState(null);
+
+  const handleNodeClick = (member) => {
+    setMemberPanelData(member);
+    setMemberPanelOpen(true);
+  };
 
   // Image Export
-  const downloadTreeImage = async () => {
-    if (!reactFlowInstance) return;
+  const downloadTreeImage = async () => {    if (!reactFlowInstance) return;
     const viewport = document.querySelector('.react-flow__viewport');
     const rf = document.querySelector('.react-flow');
     if (!rf) return;
@@ -445,9 +455,13 @@ export default function FamilyTree() {
     mutationFn: ({ email, role }) => familyAPI.inviteMember(familyId, email, role),
     onSuccess: (response) => {
       const token = response?.data?.invite?.token || null;
+      // Use server-provided invite link if available, otherwise construct it
+      const serverLink = response?.data?.inviteLink || null;
+      const builtLink = token ? `${window.location.origin}/join/${token}` : null;
       setInviteToken(token);
+      setInviteLink(serverLink || builtLink);
       setInviteForm({ email: '', role: 'viewer' });
-      toast.success('Invitation created');
+      toast.success('Invitation created! The link is ready to share.');
     },
     onError: (error) => {
       const message = error.response?.data?.error || 'Failed to invite member';
@@ -612,6 +626,12 @@ export default function FamilyTree() {
 
   return (
     <div className="space-y-6">
+      <HowToGuideModal isOpen={showHowToGuide} onClose={() => setShowHowToGuide(false)} />
+      <MemberDetailsPanel
+        member={memberPanelData}
+        isOpen={memberPanelOpen}
+        onClose={() => setMemberPanelOpen(false)}
+      />
       {content ? content : (
         <>
           <motion.div
@@ -624,6 +644,16 @@ export default function FamilyTree() {
               <p className="text-gray-600 mt-1">Visualize your family connections</p>
             </div>
             <div className="flex gap-3 items-center">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowHowToGuide(true)}
+                className="btn btn-secondary flex items-center gap-2"
+                title="How to use the Family Tree"
+              >
+                <HelpCircle size={18} />
+                Help
+              </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -710,6 +740,7 @@ export default function FamilyTree() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setInviteToken(null);
+                  setInviteLink(null);
                   setShowInviteModal(true);
                 }}
                 className="btn btn-outline flex items-center gap-2"
@@ -1273,25 +1304,47 @@ export default function FamilyTree() {
                 onClick={() => {
                   setShowInviteModal(false);
                   setInviteToken(null);
+                  setInviteLink(null);
                 }}
               />
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6"
+                className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">Invite Family Member</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-indigo-500 rounded-xl flex items-center justify-center">
+                      <UserPlus size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Invite Family Member</h3>
+                      <p className="text-xs text-gray-500">They'll get an email with a join link</p>
+                    </div>
+                  </div>
                   <button
                     onClick={() => {
                       setShowInviteModal(false);
                       setInviteToken(null);
+                      setInviteLink(null);
                     }}
                     className="p-2 hover:bg-gray-100 rounded-lg"
                   >
                     <X size={18} />
                   </button>
                 </div>
+
+                {/* How it works — brief */}
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-4">
+                  <p className="text-xs font-semibold text-indigo-700 mb-1">How invites work:</p>
+                  <ol className="text-xs text-indigo-600 space-y-0.5">
+                    <li>1. Enter their email below and click "Send Invite"</li>
+                    <li>2. They get an email with a special link (valid 7 days)</li>
+                    <li>3. They click the link, log in or register (free), then click "Accept Invitation"</li>
+                    <li>4. Done! They're now part of your family tree</li>
+                  </ol>
+                </div>
+
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1299,59 +1352,79 @@ export default function FamilyTree() {
                       toast.error('Email is required');
                       return;
                     }
-                    toast.loading('Sending invitation...');
+                    setInviteLink(null); // clear previous result
                     inviteMutation.mutate(inviteForm);
                   }}
                   className="space-y-4"
                 >
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Family Member's Email Address
+                    </label>
                     <input
                       type="email"
                       className="input"
+                      placeholder="e.g. grandma@example.com"
                       value={inviteForm.email}
                       onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                     <select
                       className="input"
                       value={inviteForm.role}
                       onChange={(e) => setInviteForm(prev => ({ ...prev, role: e.target.value }))}
                     >
-                      <option value="viewer">Viewer</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
+                      <option value="viewer">Viewer — can see the tree but not edit</option>
+                      <option value="editor">Editor — can add and edit members</option>
+                      <option value="admin">Admin — full control</option>
                     </select>
                   </div>
-                  {inviteToken && (
-                    <div className="rounded-lg bg-primary-50 border border-primary-200 p-3 text-sm text-primary-700 flex flex-col gap-2">
-                      <span className="font-semibold">Invite link:</span>
+
+                  {/* Show invite link after creation */}
+                  {inviteLink && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl bg-green-50 border border-green-300 p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-green-600 text-lg">✅</span>
+                        <span className="font-semibold text-green-800">Invitation created!</span>
+                      </div>
+                      <p className="text-sm text-green-700 mb-3">
+                        {inviteMutation.variables?.email
+                          ? `An invitation email has been sent to ${inviteMutation.variables.email}. `
+                          : ''}
+                        You can also share the link below directly via WhatsApp, SMS, etc:
+                      </p>
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           readOnly
-                          className="input flex-1 bg-primary-25 border-primary-200 text-primary-700 font-mono text-xs"
-                          value={`${window.location.origin}/join/${inviteToken}`}
-                          style={{ minWidth: 0 }}
+                          className="input flex-1 bg-white border-green-200 text-green-800 font-mono text-xs"
+                          value={inviteLink}
                           onFocus={e => e.target.select()}
                         />
                         <button
                           type="button"
-                          className="btn btn-xs btn-primary"
+                          className="btn btn-sm bg-green-600 text-white hover:bg-green-700 shrink-0"
                           onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/join/${inviteToken}`);
+                            navigator.clipboard.writeText(inviteLink);
                             toast.success('Invite link copied!');
                           }}
                         >
                           Copy
                         </button>
                       </div>
-                      <span className="text-xs text-gray-500">Share this link with your family member so they can join directly.</span>
-                    </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        💡 Share this link via WhatsApp, SMS, or any messaging app. Valid for 7 days.
+                      </p>
+                    </motion.div>
                   )}
+
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
@@ -1359,12 +1432,21 @@ export default function FamilyTree() {
                       onClick={() => {
                         setShowInviteModal(false);
                         setInviteToken(null);
+                        setInviteLink(null);
                       }}
                     >
                       Close
                     </button>
-                    <button type="submit" className="btn btn-primary flex-1" disabled={inviteMutation.isLoading}>
-                      {inviteMutation.isLoading ? 'Sending...' : 'Send Invite'}
+                    <button
+                      type="submit"
+                      className="btn btn-primary flex-1"
+                      disabled={inviteMutation.isLoading}
+                    >
+                      {inviteMutation.isLoading
+                        ? 'Sending...'
+                        : inviteLink
+                        ? 'Send Another Invite'
+                        : '📧 Send Invite'}
                     </button>
                   </div>
                 </form>
