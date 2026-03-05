@@ -34,6 +34,16 @@ const isTrustedVercelOrigin = (origin) => {
   }
 };
 
+const isLocalhostOrigin = (origin) => {
+  if (process.env.NODE_ENV === 'production') return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1');
+  } catch {
+    return false;
+  }
+};
+
 const buildConfigReadiness = () => ({
   databaseUrlConfigured: Boolean(process.env.DATABASE_URL),
   jwtSecretConfigured: Boolean(process.env.JWT_SECRET),
@@ -69,7 +79,7 @@ const createApp = () => {
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin)) {
+      if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin) || isLocalhostOrigin(origin)) {
         return callback(null, true);
       }
 
