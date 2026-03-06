@@ -37,8 +37,8 @@ const isTrustedVercelOrigin = (origin) => {
 const isLocalhostOrigin = (origin) => {
   if (process.env.NODE_ENV === 'production') return false;
   try {
-    const { hostname, protocol } = new URL(origin);
-    return protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1');
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1';
   } catch {
     return false;
   }
@@ -76,7 +76,7 @@ const createApp = () => {
 
   // CORS
   const allowedOrigins = buildAllowedOrigins();
-  app.use(cors({
+  const corsOptions = {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin) || isLocalhostOrigin(origin)) {
@@ -87,8 +87,12 @@ const createApp = () => {
       corsError.statusCode = 403;
       return callback(corsError);
     },
-    credentials: true
-  }));
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  };
+  app.options(/(.*)/, cors(corsOptions));
+  app.use(cors(corsOptions));
 
   // Body parser
   app.use(express.json({ limit: '10mb' }));
