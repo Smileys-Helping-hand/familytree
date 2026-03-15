@@ -34,6 +34,19 @@ const isTrustedVercelOrigin = (origin) => {
   }
 };
 
+const isTrustedOwnDomain = (origin) => {
+  // Allow any subdomain of the site's own domain (e.g. www.thisisourfamilytree.co.za)
+  const ownDomain = (process.env.OWN_DOMAIN || '').trim();
+  if (!ownDomain) return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    return hostname === ownDomain || hostname.endsWith(`.${ownDomain}`);
+  } catch {
+    return false;
+  }
+};
+
 const isLocalhostOrigin = (origin) => {
   if (process.env.NODE_ENV === 'production') return false;
   try {
@@ -64,22 +77,13 @@ const createApp = () => {
 
   app.set('trust proxy', 1);
 
-  // Security middleware
-  app.use(helmet());
-
-  // Rate limiting
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100
-  });
-  app.use('/api/', limiter);
-
-  // CORS
+  // CORS must be registered FIRST so all responses (including errors from later
+  // middleware like rate-limiting) include the Access-Control-Allow-Origin header.
   const allowedOrigins = buildAllowedOrigins();
   const corsOptions = {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin) || isLocalhostOrigin(origin)) {
+      if (allowedOrigins.includes(origin) || isTrustedVercelOrigin(origin) || isTrustedOwnDomain(origin) || isLocalhostOrigin(origin)) {
         return callback(null, true);
       }
 
@@ -91,8 +95,18 @@ const createApp = () => {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   };
-  app.options(/(.*)/, cors(corsOptions));
+  app.options('*', cors(corsOptions));
   app.use(cors(corsOptions));
+
+  // Security middleware
+  app.use(helmet());
+
+  // Rate limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100
+  });
+  app.use('/api/', limiter);
 
   // Body parser
   app.use(express.json({ limit: '10mb' }));

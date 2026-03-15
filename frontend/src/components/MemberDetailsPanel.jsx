@@ -11,7 +11,11 @@ export default function MemberDetailsPanel({ member, isOpen, onClose, isReadOnly
 
   useEffect(() => {
     if (member?.id && isOpen) {
-      memberAPI.getMemories(member.id).then(res => setMemories(res.data.memories));
+      memberAPI.getMemories(member.id)
+        .then(res => setMemories(res.data.memories || []))
+        .catch(() => setMemories([]));
+    } else {
+      setMemories([]);
     }
   }, [member, isOpen]);
 
@@ -39,6 +43,7 @@ export default function MemberDetailsPanel({ member, isOpen, onClose, isReadOnly
   return (
     <div className={`fixed top-0 right-0 w-[420px] h-full bg-white shadow-2xl z-50 transform transition-transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       <button className="absolute top-4 right-4 text-gray-500 hover:text-gray-900" onClick={onClose}>×</button>
+      {!member ? null : (
       <div className="p-6">
         <div className="flex items-center gap-4 mb-6">
           <img src={member.photo || '/default-avatar.png'} alt="Profile" className="w-20 h-20 rounded-full border-2 border-primary-200" />
@@ -79,6 +84,7 @@ export default function MemberDetailsPanel({ member, isOpen, onClose, isReadOnly
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

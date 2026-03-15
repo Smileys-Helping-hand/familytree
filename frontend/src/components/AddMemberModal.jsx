@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { memberAPI } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Calendar, FileText } from 'lucide-react';
+import { X, User, Calendar, FileText, Mail, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageUploader from '../components/ImageUploader';
 import { syncMemberToFamilyVerse } from '../utils/familyverseSync';
@@ -16,6 +16,9 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
     gender: 'other',
     birthDate: '',
     deathDate: '',
+    isLiving: true,
+    email: '',
+    phone: '',
     photo: '',
     biography: '',
   });
@@ -28,6 +31,9 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
         gender: member.gender || 'other',
         birthDate: member.birthDate ? member.birthDate.slice(0, 10) : '',
         deathDate: member.deathDate ? member.deathDate.slice(0, 10) : '',
+        isLiving: member.isLiving !== undefined ? member.isLiving : true,
+        email: member.email || '',
+        phone: member.phone || '',
         photo: member.photo || '',
         biography: member.biography || '',
       });
@@ -38,6 +44,9 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
         gender: 'other',
         birthDate: '',
         deathDate: '',
+        isLiving: true,
+        email: '',
+        phone: '',
         photo: '',
         biography: '',
       });
@@ -62,6 +71,9 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
         gender: 'other',
         birthDate: '',
         deathDate: '',
+        isLiving: true,
+        email: '',
+        phone: '',
         photo: '',
         biography: '',
       });
@@ -86,11 +98,6 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
     },
   });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -106,9 +113,21 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
     }
   };
 
+  // Auto-mark as deceased when a death date is entered
+  const handleChange = (e) => {
+    const { name, value, type: inputType, checked } = e.target;
+    const newValue = inputType === 'checkbox' ? checked : value;
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: newValue };
+      if (name === 'deathDate' && value) updated.isLiving = false;
+      if (name === 'deathDate' && !value) updated.isLiving = true;
+      return updated;
+    });
+  };
+
   if (!isOpen) return null;
 
-  const isSaving = createMemberMutation.isLoading || updateMemberMutation.isLoading;
+  const isSaving = createMemberMutation.isPending || updateMemberMutation.isPending;
 
   return (
     <AnimatePresence>
@@ -151,6 +170,12 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Quick-start hint for new members */}
+              {!member && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                  <span className="font-semibold">Tip:</span> Only <span className="font-semibold">First Name</span> is required. After saving, use the <span className="font-semibold">Relationship Builder</span> below the tree to connect this person to others.
+                </div>
+              )}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -232,7 +257,7 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Calendar className="inline mr-1" size={16} />
-                    Death Date (if applicable)
+                    Death Date <span className="text-gray-400 font-normal">(leave blank if living)</span>
                   </label>
                   <input
                     type="date"
@@ -240,6 +265,53 @@ export default function AddMemberModal({ isOpen, onClose, familyId, member }) {
                     value={formData.deathDate}
                     onChange={handleChange}
                     className="input"
+                  />
+                </div>
+              </div>
+
+              {/* Living status — auto-toggled by deathDate, can override */}
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <input
+                  type="checkbox"
+                  id="isLiving"
+                  name="isLiving"
+                  checked={formData.isLiving}
+                  onChange={handleChange}
+                  className="w-4 h-4 accent-primary-600"
+                />
+                <label htmlFor="isLiving" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                  Currently living
+                </label>
+                <span className="text-xs text-gray-400">(auto-unchecked when a death date is entered)</span>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Mail className="inline mr-1" size={16} />
+                    Email <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="input"
+                    placeholder="john@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="inline mr-1" size={16} />
+                    Phone <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="input"
+                    placeholder="+27 82 123 4567"
                   />
                 </div>
               </div>

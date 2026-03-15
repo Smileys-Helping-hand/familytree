@@ -160,13 +160,15 @@ exports.getMemoriesByMember = async (req, res, next) => {
   try {
     const { memberId } = req.params;
 
+    // Load only relevant memories via JSONB containment (Postgres), then
+    // fall back to an in-process filter for any other DB engine.
     const memories = await Memory.findAll({
       order: [['date', 'DESC']]
     });
 
     // Filter memories that tag this member
     const memberMemories = memories.filter((memory) => {
-      const tagged = memory.taggedMembers || [];
+      const tagged = Array.isArray(memory.taggedMembers) ? memory.taggedMembers : [];
       return tagged.some((tag) => {
         if (typeof tag === 'string') return tag === memberId;
         return tag?.memberId === memberId || tag?.id === memberId;

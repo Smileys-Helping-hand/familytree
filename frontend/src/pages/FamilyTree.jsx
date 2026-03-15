@@ -1248,9 +1248,9 @@ export default function FamilyTree() {
                   <button
                     type="submit"
                     className={`btn ${relationshipMode === 'add' ? 'btn-primary' : 'btn-secondary'}`}
-                    disabled={addRelationshipMutation.isLoading || removeRelationshipMutation.isLoading}
+                    disabled={addRelationshipMutation.isPending || removeRelationshipMutation.isPending}
                   >
-                    {addRelationshipMutation.isLoading || removeRelationshipMutation.isLoading
+                    {addRelationshipMutation.isPending || removeRelationshipMutation.isPending
                       ? 'Saving...'
                       : (relationshipMode === 'add' ? 'Create Relationship' : 'Remove Relationship')}
                   </button>
