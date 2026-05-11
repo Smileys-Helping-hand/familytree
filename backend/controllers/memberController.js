@@ -157,7 +157,7 @@ exports.createMember = async (req, res) => {
       metadata: { memberId: member.id }
     });
 
-    // Sync to FamilyVerse (do not block response)
+    // Sync to FamilyVerse (fire-and-forget — do not block response)
     syncMemberToFamilyVerse({
       id: member.id,
       familyId: member.familyId,
@@ -173,7 +173,7 @@ exports.createMember = async (req, res) => {
       phone: member.phone,
       relationships: member.relationships,
       treePosition: member.treePosition
-    });
+    }).catch(err => console.error('FamilyVerse sync failed:', err?.message));
     res.status(201).json({
       success: true,
       member

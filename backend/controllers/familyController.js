@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { Family, User, FamilyMembership, FamilyInvite } = require('../models');
+const { Family, User, FamilyMember, FamilyMembership, FamilyInvite } = require('../models');
 const { recordActivity } = require('../utils/activity');
 const { sendEmail } = require('../utils/email');
 
@@ -55,8 +55,22 @@ exports.createFamily = async (req, res) => {
 // @desc    Get all families user belongs to
 exports.getMyFamilies = async (req, res) => {
   try {
-    // Only show families the user is a member of or created
+    // Step 1: collect all family IDs the user is linked to
+    const memberships = await FamilyMembership.findAll({
+      where: { userId: req.user.id },
+      attributes: ['familyId']
+    });
+    const memberFamilyIds = memberships.map((m) => m.familyId);
+
+    // Step 2: fetch families the user created OR is a member of
+    const familyIds = [...new Set([...memberFamilyIds])];
     const families = await Family.findAll({
+      where: {
+        [Op.or]: [
+          { createdBy: req.user.id },
+          ...(familyIds.length > 0 ? [{ id: { [Op.in]: familyIds } }] : [])
+        ]
+      },
       include: [
         {
           model: User,
@@ -66,25 +80,27 @@ exports.getMyFamilies = async (req, res) => {
         {
           model: FamilyMembership,
           as: 'memberships',
-          attributes: ['role', 'userId'],
-          required: true,
-          where: { userId: req.user.id }
+          attributes: ['role', 'userId']
         }
       ],
-      where: {
-        [Op.or]: [
-          { createdBy: req.user.id },
-          { '$memberships.userId$': req.user.id }
-        ]
-      },
-      order: [['createdAt', 'DESC']],
-      distinct: true
+      order: [['createdAt', 'DESC']]
     });
+
+    // Attach live member counts to each family
+    const familiesWithCounts = await Promise.all(families.map(async (family) => {
+      const plain = family.toJSON();
+      const liveCount = await FamilyMember.count({ where: { familyId: plain.id } });
+      plain.stats = {
+        ...(plain.stats || {}),
+        totalMembers: liveCount
+      };
+      return plain;
+    }));
 
     res.json({
       success: true,
-      count: families.length,
-      families
+      count: familiesWithCounts.length,
+      families: familiesWithCounts
     });
   } catch (error) {
     console.error('Get families error:', error);

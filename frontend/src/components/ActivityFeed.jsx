@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
-import { Users, Image, Calendar, UserPlus, Heart, MessageCircle, Upload, Edit } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { Users, Image, Calendar, UserPlus, Heart, MessageCircle, Upload, Edit, Zap } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function ActivityFeed({ activities = [], limit = 10 }) {
   const getActivityIcon = (type) => {
@@ -11,6 +11,7 @@ export default function ActivityFeed({ activities = [], limit = 10 }) {
       case 'photo_liked': return Heart;
       case 'comment_added': return MessageCircle;
       case 'profile_updated': return Edit;
+      case 'ai_generated': return Zap;
       default: return Users;
     }
   };
@@ -23,6 +24,7 @@ export default function ActivityFeed({ activities = [], limit = 10 }) {
       case 'photo_liked': return 'from-red-500 to-pink-500';
       case 'comment_added': return 'from-blue-500 to-cyan-500';
       case 'profile_updated': return 'from-primary-500 to-blue-500';
+      case 'ai_generated': return 'from-indigo-500 to-purple-500';
       default: return 'from-gray-500 to-gray-700';
     }
   };

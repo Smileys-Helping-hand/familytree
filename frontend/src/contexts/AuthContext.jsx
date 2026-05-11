@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -12,22 +12,17 @@ export const useAuth = () => {
   return context;
 };
 
-// Configure axios defaults
-const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
-axios.defaults.baseURL = apiBaseUrl;
-axios.defaults.withCredentials = true;
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Set auth token in axios headers
+  // Set auth token on the shared api instance
   const setAuthToken = (token) => {
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       localStorage.setItem('token', token);
     } else {
-      delete axios.defaults.headers.common['Authorization'];
+      delete api.defaults.headers.common['Authorization'];
       localStorage.removeItem('token');
     }
   };
@@ -36,18 +31,39 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('token');
-      
+
       if (token) {
         setAuthToken(token);
         try {
-          const { data } = await axios.get('/auth/me');
+          const { data } = await api.get('/auth/me');
           setUser(data.user);
         } catch (error) {
-          console.error('Failed to load user:', error);
-          setAuthToken(null);
+          // If 401, try to refresh the token before giving up
+          if (error?.response?.status === 401) {
+            try {
+              const refreshToken = localStorage.getItem('refreshToken');
+              if (refreshToken) {
+                const { data: refreshData } = await api.post('/auth/refresh', { refreshToken });
+                setAuthToken(refreshData.token);
+                if (refreshData.refreshToken) {
+                  localStorage.setItem('refreshToken', refreshData.refreshToken);
+                }
+                const { data: meData } = await api.get('/auth/me');
+                setUser(meData.user);
+              } else {
+                setAuthToken(null);
+              }
+            } catch {
+              setAuthToken(null);
+              localStorage.removeItem('refreshToken');
+            }
+          } else {
+            console.error('Failed to load user:', error);
+            setAuthToken(null);
+          }
         }
       }
-      
+
       setLoading(false);
     };
 
@@ -62,7 +78,7 @@ export const AuthProvider = ({ children }) => {
       if (typeof apiError.code === 'string') return `${apiError.code}: ${apiError.message || fallback}`;
       try {
         return JSON.stringify(apiError);
-      } catch (stringifyError) {
+      } catch {
         return fallback;
       }
     }
@@ -72,7 +88,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const { data } = await axios.post('/auth/register', userData);
+      const { data } = await api.post('/auth/register', userData);
       setAuthToken(data.token);
       setUser(data.user);
       toast.success('Account created successfully!');
@@ -86,8 +102,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const { data } = await axios.post('/auth/login', credentials);
+      const { data } = await api.post('/auth/login', credentials);
       setAuthToken(data.token);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
       setUser(data.user);
       toast.success('Welcome back!');
       return data;
@@ -100,12 +119,14 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('/auth/logout');
+      await api.post('/auth/logout');
+    } catch {
+      // ignore logout errors
+    } finally {
       setAuthToken(null);
+      localStorage.removeItem('refreshToken');
       setUser(null);
       toast.success('Logged out successfully');
-    } catch (error) {
-      console.error('Logout error:', error);
     }
   };
 

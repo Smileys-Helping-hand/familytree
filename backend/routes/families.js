@@ -8,6 +8,11 @@ const { protect } = require('../middleware/auth');
 // @access  Private
 router.post('/', protect, familyController.createFamily);
 
+// @route   POST /api/families/join
+// @desc    Join family with invite token (must be before /:id routes)
+// @access  Private
+router.post('/join', protect, familyController.joinFamily);
+
 // @route   GET /api/families
 // @desc    Get all families user has access to
 // @access  Private
@@ -32,11 +37,6 @@ router.delete('/:id', protect, familyController.deleteFamily);
 // @desc    Invite a member to family
 // @access  Private
 router.post('/:id/invite', protect, familyController.inviteMember);
-
-// @route   POST /api/families/join
-// @desc    Join family with invite token
-// @access  Private
-router.post('/join', protect, familyController.joinFamily);
 
 // @route   DELETE /api/families/:id/members/:userId
 // @desc    Remove family member

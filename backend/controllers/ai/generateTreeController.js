@@ -1,5 +1,6 @@
 const { OpenAI } = require('openai');
 const db = require('../../models');
+const { recordActivity } = require('../../utils/activity');
 
 const FREE_PLAN_LIMIT = 15;
 
@@ -157,6 +158,28 @@ Rules:
       };
       await dbMember.update({ relationships: JSON.stringify(relationships) });
     }
+
+    // Update family stats
+    const family = await db.Family.findByPk(familyId);
+    if (family) {
+      const stats = family.stats || {};
+      await family.update({
+        stats: {
+          ...stats,
+          totalMembers: (stats.totalMembers || 0) + createdPairs.length
+        }
+      });
+    }
+
+    // Record activity
+    await recordActivity({
+      familyId,
+      userId: req.user.id,
+      type: 'ai_generated',
+      action: 'generated a family tree with AI',
+      description: `Generated ${createdPairs.length} family member${createdPairs.length !== 1 ? 's' : ''} using AI`,
+      metadata: { count: createdPairs.length }
+    });
 
     res.json({
       success: true,
