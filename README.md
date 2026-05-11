@@ -26,8 +26,8 @@ A modern, full-stack web application for preserving family heritage, sharing mem
 - **MongoDB & Mongoose** - Optional/legacy database support
 - **JWT** - Authentication
 - **Cloudinary** - Image/video storage
-- **SendGrid/Nodemailer** - Email service
-- **Stripe** - Payment processing
+- **Resend/Nodemailer** - Email service
+- **Stripe** - Optional payment processing
 
 ### Frontend
 - **React 18** - UI framework
@@ -46,8 +46,8 @@ A modern, full-stack web application for preserving family heritage, sharing mem
 - PostgreSQL 12+ (primary database)
 - MongoDB (optional, for legacy support)
 - Cloudinary account (for image uploads)
-- Stripe account (for payments)
-- SendGrid or SMTP email service
+- Stripe account (optional, only if billing is enabled)
+- Resend, SendGrid, or SMTP email service
 
 ### 1. Clone the Repository
 ```bash
@@ -73,12 +73,8 @@ notepad .env
 PORT=5000
 NODE_ENV=development
 
-# PostgreSQL (Primary)
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=familytree
-DB_USER=postgres
-DB_PASSWORD=your_password
+# PostgreSQL/Neon (Primary)
+DATABASE_URL=postgresql://username:password@host.neon.tech/dbname?sslmode=require
 
 # MongoDB (Optional)
 MONGODB_URI=mongodb://localhost:27017/familytree
@@ -93,10 +89,12 @@ CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 
 # Email
+RESEND_API_KEY=re_your_resend_key
 SENDGRID_API_KEY=your_sendgrid_key
 EMAIL_FROM=noreply@yourdomain.com
 
-# Stripe
+# Stripe (optional)
+ENABLE_STRIPE=false
 STRIPE_SECRET_KEY=sk_test_your_stripe_key
 
 # CORS

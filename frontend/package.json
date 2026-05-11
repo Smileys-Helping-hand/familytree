@@ -15,7 +15,6 @@
     "axios": "^1.6.2",
     "dagre": "^0.8.5",
     "date-fns": "^4.1.0",
-    "firebase": "^12.9.0",
     "framer-motion": "^12.34.2",
     "html-to-image": "^1.11.13",
     "lucide-react": "^0.574.0",

@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from '../config/firebase';
+import api from '../services/api';
 
 /**
- * Custom hook for handling file uploads to Firebase Storage
+ * Custom hook for handling file uploads via backend API
  * @returns {Object} - Upload state and functions
  */
 export const useFileUpload = () => {
@@ -39,14 +38,13 @@ export const useFileUpload = () => {
   };
 
   /**
-   * Upload file to Firebase Storage
+   * Upload file through backend -> Cloudinary
    * @param {File} file - File to upload
-   * @param {string} familyId - Family ID for path
-   * @param {string} memberId - Member ID for path
-   * @param {string} oldPhotoUrl - Previous photo URL to delete (optional)
-   * @returns {Promise<string>} - Download URL of uploaded file
+   * @param {string} familyId - Family ID for foldering
+   * @param {string} memberId - Member ID for foldering
+   * @returns {Promise<string>} - Uploaded file URL
    */
-  const uploadFile = async (file, familyId, memberId, oldPhotoUrl = null) => {
+  const uploadFile = async (file, familyId, memberId) => {
     // Validate file
     const validation = validateFile(file);
     if (!validation.valid) {
@@ -60,90 +58,47 @@ export const useFileUpload = () => {
     setDownloadUrl(null);
 
     try {
-      // Create storage reference with timestamp for uniqueness
-      const timestamp = Date.now();
-      const fileName = `profile_${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      const storagePath = `families/${familyId}/members/${memberId}/${fileName}`;
-      const storageRef = ref(storage, storagePath);
+      const formData = new FormData();
+      formData.append('file', file);
+      if (familyId) formData.append('familyId', familyId);
+      if (memberId) formData.append('memberId', memberId);
 
-      // Upload file with progress tracking
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      return new Promise((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            // Track upload progress
-            const progressPercent = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setProgress(progressPercent);
-          },
-          (error) => {
-            // Handle upload error
-            console.error('Upload error:', error);
-            setError(error.message || 'Upload failed');
-            setUploading(false);
-            reject(error);
-          },
-          async () => {
-            // Upload completed successfully
-            try {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              setDownloadUrl(url);
-              setUploading(false);
-              setProgress(100);
-
-              // Delete old photo if it exists and is from Firebase Storage
-              if (oldPhotoUrl && oldPhotoUrl.includes('firebasestorage.googleapis.com')) {
-                try {
-                  await deleteOldPhoto(oldPhotoUrl);
-                } catch (deleteError) {
-                  console.warn('Failed to delete old photo:', deleteError);
-                  // Don't fail the upload if deletion fails
-                }
-              }
-
-              resolve(url);
-            } catch (urlError) {
-              setError('Failed to get download URL');
-              setUploading(false);
-              reject(urlError);
-            }
-          }
-        );
+      const response = await api.post('/members/upload-photo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          const progressPercent = (event.loaded / event.total) * 100;
+          setProgress(progressPercent);
+        }
       });
+
+      const url = response?.data?.url;
+      if (!url) {
+        throw new Error('Upload did not return a file URL');
+      }
+
+      setDownloadUrl(url);
+      setUploading(false);
+      setProgress(100);
+      return url;
     } catch (err) {
       console.error('Upload initialization error:', err);
-      setError(err.message || 'Failed to initialize upload');
+      setError(err?.response?.data?.error || err.message || 'Failed to initialize upload');
       setUploading(false);
       return null;
     }
   };
 
   /**
-   * Delete a file from Firebase Storage
-   * @param {string} photoUrl - Firebase Storage URL to delete
+   * No-op placeholder for backward compatibility.
+   * @param {string} photoUrl - Previously uploaded URL
    * @returns {Promise<void>}
    */
+  // eslint-disable-next-line no-unused-vars
   const deleteOldPhoto = async (photoUrl) => {
-    if (!photoUrl || !photoUrl.includes('firebasestorage.googleapis.com')) {
-      return; // Not a Firebase Storage URL
-    }
-
-    try {
-      // Extract the storage path from the URL
-      const decodedUrl = decodeURIComponent(photoUrl);
-      const pathMatch = decodedUrl.match(/\/o\/(.+?)\?/);
-      
-      if (pathMatch && pathMatch[1]) {
-        const filePath = pathMatch[1];
-        const fileRef = ref(storage, filePath);
-        await deleteObject(fileRef);
-        console.log('Old photo deleted successfully');
-      }
-    } catch (error) {
-      console.error('Error deleting old photo:', error);
-      throw error;
-    }
+    return;
   };
 
   /**

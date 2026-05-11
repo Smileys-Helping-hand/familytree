@@ -62,13 +62,18 @@
       "description": "Cloudinary API secret",
       "required": false
     },
-    "SENDGRID_API_KEY": {
-      "description": "SendGrid API key for email notifications",
+    "RESEND_API_KEY": {
+      "description": "Resend API key for email notifications",
       "required": false
     },
     "EMAIL_FROM": {
       "description": "Email address for sending notifications",
       "value": "noreply@familytree.app",
+      "required": false
+    },
+    "ENABLE_STRIPE": {
+      "description": "Enable Stripe subscription routes",
+      "value": "false",
       "required": false
     },
     "STRIPE_SECRET_KEY": {

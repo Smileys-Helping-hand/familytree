@@ -4,22 +4,89 @@ const { recordActivity } = require('../../utils/activity');
 
 const FREE_PLAN_LIMIT = 15;
 
+const stripCodeFences = (text) => {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+};
+
+const getAiProvider = () => {
+  const provider = String(process.env.AI_PROVIDER || '').toLowerCase();
+  if (provider === 'gemini') return 'gemini';
+  if (provider === 'openai') return 'openai';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  if (process.env.GEMINI_API_KEY) return 'gemini';
+  return null;
+};
+
+const generateWithOpenAI = async (prompt, systemPrompt) => {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.2,
+    response_format: { type: 'json_object' }
+  });
+
+  return completion.choices[0].message.content;
+};
+
+const generateWithGemini = async (prompt, systemPrompt) => {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json'
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Gemini API error: ${response.status} ${details}`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+  return text;
+};
+
 /**
  * POST /api/ai/generate-tree
  * Body: { prompt: string, familyId: string }
  * Returns: Array of created member records
  */
 exports.generateTree = async (req, res) => {
-  // Guard: require OpenAI key before doing anything — avoids crash at module load time
-  if (!process.env.OPENAI_API_KEY) {
+  const provider = getAiProvider();
+
+  // Guard: require at least one configured AI provider before doing anything.
+  if (!provider) {
     return res.status(503).json({
-      error: 'AI generation is currently unavailable. The service is not configured on this server.',
+      error: 'AI generation is currently unavailable. Set OPENAI_API_KEY or GEMINI_API_KEY on this server.',
       code: 'AI_NOT_CONFIGURED'
     });
   }
-
-  // Lazy-init OpenAI so it never throws at require() time
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const { prompt, familyId } = req.body;
   if (!prompt || !familyId) {
@@ -39,21 +106,14 @@ exports.generateTree = async (req, res) => {
       });
     }
   }
+        const completionText = provider === 'gemini'
+          ? await generateWithGemini(prompt, systemPrompt)
+          : await generateWithOpenAI(prompt, systemPrompt);
 
-  // System prompt — ask for a JSON object with a "members" array so json_object mode works correctly
-  const systemPrompt = `You are a family tree extraction AI. Given a description of a family, extract all members and their relationships.
-
-Return ONLY a JSON object in this exact format (no extra text, no markdown):
-{
-  "members": [
-    {
-      "tempId": "unique_string",
-      "name": "Full Name",
-      "gender": "male or female or other",
-      "isLiving": true,
+        // Parse the JSON response and extract the members array.
       "relationships": {
         "spouse": ["tempId_of_spouse"],
-        "children": ["tempId_of_child"],
+          const parsed = JSON.parse(stripCodeFences(completionText));
         "parents": ["tempId_of_parent"],
         "siblings": ["tempId_of_sibling"]
       }

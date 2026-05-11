@@ -3,6 +3,17 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const { User } = require('../models/index');
 
+const isStripeEnabled = () => ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_STRIPE || '').toLowerCase());
+
+const ensureStripeEnabled = (res) => {
+  if (isStripeEnabled()) return true;
+  res.status(503).json({
+    success: false,
+    error: 'Billing is disabled. Set ENABLE_STRIPE=true to enable Stripe endpoints.'
+  });
+  return false;
+};
+
 // Lazily initialize Stripe to avoid crash when key is not configured
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'your_stripe_secret_key') {
@@ -16,6 +27,8 @@ const getStripe = () => {
 // @access  Private
 router.post('/create-checkout', protect, async (req, res, next) => {
   try {
+    if (!ensureStripeEnabled(res)) return;
+
     const { tier } = req.body; // 'premium' or 'premium_plus'
     const user = await User.findByPk(req.user.id);
 
@@ -53,6 +66,8 @@ router.post('/create-checkout', protect, async (req, res, next) => {
 // @desc    Stripe webhook
 // @access  Public
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!ensureStripeEnabled(res)) return;
+
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -100,6 +115,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // @access  Private
 router.post('/cancel', protect, async (req, res, next) => {
   try {
+    if (!ensureStripeEnabled(res)) return;
+
     const user = await User.findByPk(req.user.id);
 
     if (!user || !user.stripeSubscriptionId) {

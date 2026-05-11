@@ -1,5 +1,29 @@
 const nodemailer = require('nodemailer');
 
+const sendViaResend = async ({ to, subject, html, text }) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM || 'noreply@familytree.com',
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text
+    })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Resend API error: ${response.status} ${errorBody}`);
+  }
+
+  return response.json();
+};
+
 // Create transporter
 const createTransporter = () => {
   if (process.env.SENDGRID_API_KEY) {
@@ -14,9 +38,10 @@ const createTransporter = () => {
     });
   } else {
     // Gmail or other SMTP
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT || 587,
+      secure: String(process.env.SMTP_PORT || '587') === '465',
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -26,6 +51,12 @@ const createTransporter = () => {
 };
 
 exports.sendEmail = async (options) => {
+  if (process.env.RESEND_API_KEY) {
+    const info = await sendViaResend(options);
+    console.log('Email sent via Resend:', info.id || 'ok');
+    return info;
+  }
+
   const transporter = createTransporter();
 
   const mailOptions = {
