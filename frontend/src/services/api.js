@@ -7,8 +7,18 @@ const api = axios.create({
   withCredentials: true,
 });
 
+const normalizeApiPath = (url) => {
+  if (typeof url !== 'string') return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/api/')) return url.slice(4);
+  if (url === '/api') return '/';
+  return url;
+};
+
 // Add token to requests
 api.interceptors.request.use((config) => {
+  config.url = normalizeApiPath(config.url);
+
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
