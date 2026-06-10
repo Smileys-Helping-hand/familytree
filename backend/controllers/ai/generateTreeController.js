@@ -106,14 +106,21 @@ exports.generateTree = async (req, res) => {
       });
     }
   }
-        const completionText = provider === 'gemini'
-          ? await generateWithGemini(prompt, systemPrompt)
-          : await generateWithOpenAI(prompt, systemPrompt);
 
-        // Parse the JSON response and extract the members array.
+  const systemPrompt = `You are a family tree genealogist. Parse family descriptions into a JSON object with members.
+Each member must have: tempId, name, gender, birthDate, isLiving, relationships.
+
+Output format:
+{
+  "members": [
+    {
+      "tempId": "john_1",
+      "name": "John Smith",
+      "gender": "male",
+      "birthDate": "1960-01-01",
+      "isLiving": true,
       "relationships": {
         "spouse": ["tempId_of_spouse"],
-          const parsed = JSON.parse(stripCodeFences(completionText));
         "parents": ["tempId_of_parent"],
         "siblings": ["tempId_of_sibling"]
       }
@@ -129,6 +136,12 @@ Rules:
 - Only include people explicitly or clearly implied in the text.`;
 
   try {
+    const completionText = provider === 'gemini'
+      ? await generateWithGemini(prompt, systemPrompt)
+      : await generateWithOpenAI(prompt, systemPrompt);
+
+    // Parse the JSON response and extract the members array.
+    const parsed = JSON.parse(stripCodeFences(completionText));
     // Call OpenAI — response_format json_object requires asking for an object, not an array
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
