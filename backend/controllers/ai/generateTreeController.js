@@ -22,54 +22,83 @@ const getAiProvider = () => {
 };
 
 const generateWithOpenAI = async (prompt, systemPrompt) => {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.2,
-    response_format: { type: 'json_object' }
-  });
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
 
-  return completion.choices[0].message.content;
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    });
+
+    return completion.choices[0].message.content;
+  } catch (error) {
+    if (error.message?.includes('API key')) {
+      throw new Error('OpenAI API key is invalid or not configured');
+    }
+    if (error.message?.includes('401')) {
+      throw new Error('OpenAI authentication failed - invalid API key');
+    }
+    if (error.message?.includes('429')) {
+      throw new Error('OpenAI rate limit exceeded - please try again later');
+    }
+    throw error;
+  }
 };
 
 const generateWithGemini = async (prompt, systemPrompt) => {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          responseMimeType: 'application/json'
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Gemini API error: ${response.status} ${details}`);
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not configured');
   }
 
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  return text;
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const details = await response.text();
+      // Better error message for 404
+      if (response.status === 404) {
+        throw new Error('Gemini model not found. Please check API key and model availability.');
+      }
+      throw new Error(`Gemini API error: ${response.status} - ${details}`);
+    }
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+    return text;
+  } catch (error) {
+    throw new Error(`Gemini generation failed: ${error.message}`);
+  }
 };
 
 /**
@@ -261,6 +290,22 @@ Rules:
     });
   } catch (error) {
     console.error('AI generate tree error:', error);
-    res.status(500).json({ error: error.message || 'AI generation failed' });
+
+    // Better error status codes
+    let statusCode = 500;
+    let errorMsg = error.message || 'AI generation failed';
+
+    if (error.message?.includes('not configured') || error.message?.includes('API_KEY')) {
+      statusCode = 503;
+      errorMsg = 'AI service is not available. Please configure API keys on the server.';
+    } else if (error.message?.includes('not found') || error.message?.includes('404')) {
+      statusCode = 503;
+      errorMsg = 'AI service model not found. Please check server configuration.';
+    } else if (error.message?.includes('limit')) {
+      statusCode = 429;
+      errorMsg = 'API rate limit exceeded. Please try again later.';
+    }
+
+    res.status(statusCode).json({ error: errorMsg });
   }
 };
