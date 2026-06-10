@@ -585,13 +585,17 @@ export default function FamilyTree() {
       setInlinePrompt('');
       setShowInlinePrompt(false);
     } catch (err) {
-      const msg = err?.response?.data?.error || 'AI generation failed';
-      if (err?.response?.data?.limitReached) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      const msg = data?.error || 'AI generation failed';
+
+      if (status === 503 || data?.code === 'AI_NOT_CONFIGURED') {
+        toast.error('AI service is not available. Please try again later or contact support.');
+      } else if (data?.limitReached) {
         toast.error(`Plan limit reached. Upgrade to Premium to add more members.`);
       } else {
         toast.error(msg);
       }
-      throw err;
     } finally {
       setAiLoading(false);
     }

@@ -5,23 +5,39 @@ const { protect } = require('../middleware/auth');
 // Generate family tree with AI assistance
 router.post('/generate-tree', protect, async (req, res) => {
   try {
-    const { familyId, prompt } = req.body;
-    if (!familyId || !prompt) {
-      return res.status(400).json({
+    // Check if AI is configured
+    const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
+    const hasGemini = Boolean(process.env.GEMINI_API_KEY);
+
+    if (!hasOpenAI && !hasGemini) {
+      return res.status(503).json({
         success: false,
-        error: 'familyId and prompt are required'
+        error: 'AI generation is currently unavailable. No AI provider is configured on this server.',
+        code: 'AI_NOT_CONFIGURED'
       });
     }
 
-    // TODO: Implement AI generation with OpenAI/Gemini
-    return res.status(501).json({
-      success: false,
-      error: 'AI generation not yet implemented'
-    });
+    // Dynamically import the controller
+    const { generateTree } = require('../controllers/ai/generateTreeController');
+
+    // Call the actual handler
+    return await generateTree(req, res);
   } catch (error) {
-    res.status(500).json({
+    console.error('AI Route Error:', error.message);
+
+    // Check for specific error conditions
+    if (error.message?.includes('OPENAI_API_KEY') || error.message?.includes('GEMINI_API_KEY')) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI service is not properly configured. Please contact support.',
+        code: 'AI_NOT_CONFIGURED'
+      });
+    }
+
+    // Generic error fallback
+    return res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message || 'AI generation failed. Please try again.'
     });
   }
 });
