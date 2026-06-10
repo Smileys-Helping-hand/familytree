@@ -15,6 +15,7 @@ const activityRoutes = require('./routes/activity');
 const aiRoutes = require('./routes/ai');
 const subscriptionRoutes = require('./routes/subscriptions');
 const userRoutes = require('./routes/users');
+const importRoutes = require('./routes/import');
 
 const buildAllowedOrigins = () => {
   const raw = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
@@ -101,12 +102,25 @@ const createApp = () => {
   // Security middleware
   app.use(helmet());
 
-  // Rate limiting
-  const limiter = rateLimit({
+  // Granular rate limiting
+  const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100
+    max: 5, // Strict for auth endpoints
+    message: 'Too many login attempts, please try again later'
   });
-  app.use('/api/', limiter);
+
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300, // More generous for normal API usage
+    message: 'Too many requests from this IP'
+  });
+
+  // Apply stricter limit to auth endpoints
+  app.use('/api/auth/register', authLimiter);
+  app.use('/api/auth/login', authLimiter);
+
+  // Apply general API limit to everything else
+  app.use('/api/', apiLimiter);
 
   // Body parser
   app.use(express.json({ limit: '10mb' }));
@@ -127,6 +141,7 @@ const createApp = () => {
   app.use('/api/ai', aiRoutes);
   app.use('/api/subscriptions', subscriptionRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/import', importRoutes);
 
   // Health check
   app.get('/api/health', (req, res) => {
